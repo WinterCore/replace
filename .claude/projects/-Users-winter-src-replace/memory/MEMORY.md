@@ -1,0 +1,1 @@
+- [feedback_stay_focused.md](feedback_stay_focused.md) - User wants me to stay focused on the task, don't explore unrelated files
