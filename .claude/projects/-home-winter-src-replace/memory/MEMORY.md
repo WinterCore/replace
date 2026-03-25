@@ -1,0 +1,1 @@
+- [Design decisions](project_design_decisions.md) — fixed checkpoint intervals, no manifest, normalized timestamps with `offset` field

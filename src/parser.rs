@@ -1,5 +1,6 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 
+#[derive(Debug)]
 pub struct PixelRecord {
     pub timestamp: DateTime<Utc>,
     pub user_id: String,
@@ -18,11 +19,11 @@ impl PixelRecord {
         let (raw_x, raw_y) = raw_coordinates.split_once(',').expect("Should contain x/y coordinates");
 
         Self {
-            x: raw_x.parse().expect("Should parse x coordinate"),
-            y: raw_y.parse().expect("Should parse y coordinate"),
+            x: raw_x.parse().unwrap_or(0),
+            y: raw_y.parse().unwrap_or(0),
             timestamp: NaiveDateTime::parse_from_str(
                 raw_timestamp,
-                "%Y-%m-%d %H:%M:%S%.3f UTC"
+                "%Y-%m-%d %H:%M:%S%.f UTC"
             ).expect("Should parse timestamp").and_utc(),
             user_id: user_id.to_string(),
             color: color.to_string(),
@@ -30,7 +31,7 @@ impl PixelRecord {
     }
 }
 
-pub struct ColorIndex(Vec<String>);
+pub struct ColorIndex(pub Vec<String>);
 
 impl ColorIndex {
     pub fn new() -> Self {
@@ -38,8 +39,10 @@ impl ColorIndex {
     }
 
     pub fn find_index(&self, needle: &str) -> Option<u8> {
+        let normalized_needle = needle.to_lowercase();
+
         for (i, color) in self.0.iter().enumerate() {
-            if needle == color {
+            if normalized_needle == *color {
                 return Some(i as u8);
             }
         }
@@ -48,12 +51,14 @@ impl ColorIndex {
     }
 
     pub fn add(&mut self, color: &str) -> u8 {
-        if let Some(index) = self.find_index(color) {
+        let normalized_color = color.to_lowercase();
+
+        if let Some(index) = self.find_index(&normalized_color) {
             return index;
         }
         
         let index = self.0.len();
-        self.0.push(color.to_owned());
+        self.0.push(normalized_color);
 
         return index as u8;
     }

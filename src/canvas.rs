@@ -2,69 +2,86 @@ use chrono::{DateTime, Utc};
 
 use crate::parser::{ColorIndex, PixelRecord};
 
+#[derive(Debug, Clone)]
 pub struct CanvasPixelPlacement {
-    pub timestamp: DateTime<Utc>,
-    pub user_id: String,
-    pub color: String,
+    pub offset: i64,
+    pub color_index: u8,
     pub x: u16,
     pub y: u16,
 }
 
-impl From<PixelRecord> for CanvasPixelPlacement {
-    fn from(value: PixelRecord) -> Self {
-        Self {
-            timestamp: value.timestamp,
-            user_id: value.user_id,
-            color: value.color,
-            x: value.x,
-            y: value.y,
-        }
-    }
-}
-
 pub struct Canvas {
-    width: u16,
-    height: u16,
+    pub start_timestamp: Option<i64>,
+    pub width: u32,
+    pub height: u32,
 
     // Current state of the canvas
-    pixels: Vec<u8>,
+    pub pixels: Vec<u8>,
 
-    color_index: ColorIndex,
+    pub color_index: ColorIndex,
 
-    pixel_placements_buffer: Vec<CanvasPixelPlacement>,
+    pub pixel_placements_buffer: Vec<CanvasPixelPlacement>,
 }
 
 
 impl Canvas {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
+        let mut color_index = ColorIndex::new();
+        let white_index = color_index.add("#ffffff");
+
+        let pixels = vec![white_index; (width as usize) * (height as usize)];
+
         Self {
-            pixels: Vec::with_capacity(2000 * 2000),
-            color_index: ColorIndex::new(),
+            start_timestamp: None,
+            pixels,
+            color_index,
             pixel_placements_buffer: Vec::with_capacity(50_000),
             width,
             height,
         }
     }
     
-    pub fn process_pixel_record(&mut self, record: PixelRecord) {        
-        self.pixel_placements_buffer.push(CanvasPixelPlacement {
-            timestamp: record.timestamp,
-            user_id: record.user_id,
-            color: record.color,
+    pub fn process_pixel_record(&mut self, record: &PixelRecord) -> CanvasPixelPlacement {
+        let start_timestamp = match self.start_timestamp {
+            None => {
+                let ts = record.timestamp.timestamp_millis();
+                self.start_timestamp = Some(ts);
+                ts
+            },
+            Some(start_timestamp) => start_timestamp,
+        };
+
+        let color_index = self.color_index.add(&record.color);
+        let placement = CanvasPixelPlacement {
+            offset: record.timestamp.timestamp_millis() - start_timestamp,
             x: record.x,
             y: record.y,
-        });
+            color_index,
+        };
+
+        self.pixel_placements_buffer.push(placement.clone());
+
+        return placement;
     }
 
     pub fn apply_placements_buffer(&mut self) {
         for item in self.pixel_placements_buffer.iter() {
-            let index = self.color_index.add(&item.color);
-
-            self.pixels[(item.y * self.width + item.x) as usize] = index;
+            let idx = item.y as usize * self.width as usize + item.x as usize;
+            self.pixels[idx] = item.color_index;
+            // println!("x: {:?}, y: {:?}, index: {:?} = {:?} | {:?}", item.x, item.y, item.color_index, self.pixels[idx], idx);
         }
 
         self.pixel_placements_buffer.truncate(0);
     }
 }
 
+#[cfg(test)]
+mod tests {
+    // Import everything from outer scope
+    use super::*;
 
+    #[test]
+    fn test_add() {
+        let canvas = Canvas::new(4, 4);
+    }
+}
