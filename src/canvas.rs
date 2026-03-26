@@ -1,8 +1,6 @@
-use chrono::{DateTime, Utc};
-
 use crate::parser::{ColorIndex, PixelRecord};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CanvasPixelPlacement {
     pub offset: i64,
     pub color_index: u8,
@@ -77,11 +75,93 @@ impl Canvas {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{Duration, Utc};
+
     // Import everything from outer scope
     use super::*;
 
     #[test]
-    fn test_add() {
-        let canvas = Canvas::new(4, 4);
+    fn test_process_pixel_record_adds_it_to_buffer() {
+        let mut canvas = Canvas::new(4, 4);
+
+        let now = Utc::now();
+
+        canvas.process_pixel_record(&PixelRecord {
+            timestamp: now,
+            user_id: "a".to_string(),
+            color: "#ff0000".to_string(),
+            x: 1,
+            y: 1,
+        });
+
+        canvas.process_pixel_record(&PixelRecord {
+            timestamp: now + Duration::seconds(2),
+            user_id: "b".to_string(),
+            color: "#000000".to_string(),
+            x: 1,
+            y: 1,
+        });
+
+        canvas.process_pixel_record(&PixelRecord {
+            timestamp: now + Duration::seconds(4),
+            user_id: "c".to_string(),
+            color: "#FFFFFF".to_string(),
+            x: 0,
+            y: 0,
+        });
+        
+        assert_eq!(canvas.color_index.0, vec!["#ffffff", "#ff0000", "#000000"]);
+        assert_eq!(canvas.pixel_placements_buffer[0],
+            CanvasPixelPlacement {
+                offset: 0,
+                color_index: 1,
+                x: 1,
+                y: 1,
+            },
+        );
+        assert_eq!(canvas.pixel_placements_buffer[1],
+            CanvasPixelPlacement {
+                offset: 2000,
+                color_index: 2,
+                x: 1,
+                y: 1,
+            },
+        );
+        assert_eq!(canvas.pixel_placements_buffer[2],
+            CanvasPixelPlacement {
+                offset: 4000,
+                color_index: 0,
+                x: 0,
+                y: 0,
+            },
+        );
+
+        canvas.apply_placements_buffer();
+
+        assert_eq!(canvas.pixel_placements_buffer.len(), 0);
+
+        assert_eq!(canvas.pixels, vec![
+            0, 0, 0, 0,
+            0, 2, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+        ]);
+
+        canvas.process_pixel_record(&PixelRecord {
+            timestamp: now + Duration::seconds(5),
+            user_id: "c".to_string(),
+            color: "#0000FF".to_string(),
+            x: 3,
+            y: 3,
+        });
+
+        canvas.apply_placements_buffer();
+
+        assert_eq!(canvas.pixels, vec![
+            0, 0, 0, 0,
+            0, 2, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 3,
+        ]);
     }
 }

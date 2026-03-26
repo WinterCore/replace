@@ -1,11 +1,11 @@
 ---
 name: Design decisions - checkpoints and timestamps
-description: Key architecture decisions about checkpoint intervals, manifest removal, and timestamp normalization
+description: Key architecture decisions about adaptive checkpoint intervals, manifest, timestamp normalization, and data sorting
 type: project
 ---
 
-Fixed checkpoint intervals instead of adaptive (delta-count-based) ones. Even at 50k deltas (~343 KB), delta files are still smaller than a checkpoint PNG, so adaptive thresholds don't help. Interval will be 5-10 seconds.
+Adaptive checkpoint intervals: frequent during high activity (5-10s), stretched out during low activity to avoid near-identical PNGs. Manifest JSON is required so the browser can find the nearest checkpoint when seeking.
 
-**Why:** Simpler implementation, and the math doesn't justify adaptive checkpoints. Frequent fixed checkpoints also improve seek performance.
+**Why:** The r/place CSV data has wildly varying activity rates. Fixed intervals create wasteful near-duplicate checkpoints during sparse periods. Discovered after the unsorted CSV data caused the checkpoint logic to produce hundreds of 1-record checkpoints.
 
-**How to apply:** No manifest file needed — browser calculates checkpoint/delta filenames from `Math.floor(time / interval)`. All timestamps are normalized relative to the first checkpoint (time 0), not UTC. The `offset` field on the pixel placement struct stores this relative time.
+**How to apply:** Manifest maps timestamps to checkpoint/delta filenames. All timestamps are normalized relative to the first placement (time 0), not UTC. The `offset` field on the pixel placement struct stores this relative time. CSV data must be sorted by timestamp before processing — the r/place dataset files are NOT pre-sorted.

@@ -4,11 +4,14 @@ A local viewer for r/place that lets you scroll through the entire history and s
 
 ## Data pipeline
 
-The raw r/place CSVs (gzipped, multi-stream) are preprocessed into a format optimized for browser playback.
+The raw r/place CSVs (gzipped) are preprocessed into a format optimized for browser playback. The raw data is unsorted both within files and across files (file numbering is arbitrary, not chronological). A two-phase external sort handles this:
+
+1. **Sort phase**: Each gzip file is decompressed, parsed, sorted by timestamp, and written to a sorted intermediate file.
+2. **Merge phase**: All sorted intermediates are k-way merged (via a min-heap) to produce a single globally-sorted stream of pixel placements.
 
 ### Checkpoints
 
-Indexed PNG snapshots of the full 2000x2000 canvas at regular intervals. Checkpoints are generated every 30 seconds by default, with additional checkpoints inserted during high-activity periods when the delta count exceeds 50,000. Used as keyframes for seeking — the browser loads the nearest checkpoint and replays deltas forward.
+Indexed PNG snapshots of the full 2000x2000 canvas at adaptive intervals. A new checkpoint is created when either 1 minute has elapsed or 50,000 pixel updates have accumulated since the last checkpoint, whichever comes first. All timestamps are normalized relative to the first placement (time 0). Used as keyframes for seeking — the browser loads the nearest checkpoint and replays deltas forward.
 
 ### Deltas
 
@@ -21,7 +24,7 @@ Binary files containing individual pixel changes between checkpoints. Each pixel
 | y                | 2 bytes | uint16 |
 | color index      | 1 byte  | uint8  |
 
-Delta files are pre-sorted by timestamp. The timestamp offset is relative to the chunk's start time, giving up to 65 seconds of range per chunk.
+Delta files are pre-sorted by timestamp. The timestamp offset is relative to the chunk's start time, giving up to 65 seconds of range per chunk. Delta files are named alongside their checkpoint (e.g., `001.png` and `001-delta.bin`).
 
 ### Thumbnails
 
@@ -29,7 +32,7 @@ Low-resolution sprite sheets (200px wide) generated every 5 seconds for seekbar 
 
 ### Manifest
 
-A JSON file listing all checkpoints with their timestamps and associated delta files, used by the browser for seeking.
+A JSON file listing all checkpoints with their timestamps and associated delta files. Required because checkpoint intervals are adaptive — the browser uses the manifest to find the nearest checkpoint when seeking.
 
 ## Encoding PNGs
 
@@ -48,10 +51,11 @@ The image data passed to the encoder is a flat buffer of palette indices, not RG
 ## Tasks
 
 ### Preprocessing (Rust)
-- [ ] Parse CSV rows from multi-stream gzip files (timestamp, user_id, pixel_color, coordinate)
+- [ ] Sort raw CSV data (external merge sort: sort each file, then k-way merge)
+- [ ] Parse CSV rows from gzip files (timestamp, user_id, pixel_color, coordinate)
 - [ ] Map hex colors to palette indices
 - [ ] Build in-memory canvas state (2000x2000 buffer of palette indices)
-- [ ] Generate checkpoint PNGs at adaptive intervals
+- [ ] Generate checkpoint PNGs at adaptive intervals (1 min or 50k updates)
 - [ ] Pack deltas into binary files between checkpoints
 - [ ] Generate thumbnail sprite sheets for seekbar
 - [ ] Write manifest JSON

@@ -1,1 +1,2 @@
-- [Design decisions](project_design_decisions.md) — fixed checkpoint intervals, no manifest, normalized timestamps with `offset` field
+- [Design decisions](project_design_decisions.md) — adaptive checkpoints, manifest required, normalized timestamps, CSV must be sorted
+- [Advisory role](feedback_advisory_role.md) — user builds everything, Claude advises only
