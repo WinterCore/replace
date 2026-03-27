@@ -33,7 +33,7 @@ impl<'a> Serializer<'a> {
         &mut self,
         placements: &[CanvasPixelPlacement],
     ) {
-        let filename = format!("{:04}-delta.bin", self.index);
+        let filename = format!("{:06}-delta.bin", self.index);
         let path = Path::new(self.out_folder).join(filename);
         let file = File::create(path).expect("Should create file");
         let mut w = BufWriter::new(file);
@@ -41,19 +41,16 @@ impl<'a> Serializer<'a> {
         let mut last_offset = self.offset;
 
         for placement in placements {
-            if placement.offset < 0 {
-                println!("UNEXPECTED PLACEMENT {:?}", placement);
-            }
-
-            assert!(placement.offset >= 0);
-            let relative_offset = placement.offset as u64 - self.offset;
+            assert!(placement.relative_offset >= 0);
+            let relative_offset = placement.relative_offset as u64 - self.offset;
             assert!(relative_offset <= u16::MAX as u64);
+            let relative_offset_u16 = relative_offset as u16;
 
+            w.write(&relative_offset_u16.to_le_bytes()).expect("Should write timestamp");
             w.write(&placement.x.to_le_bytes()).expect("Should write x");
             w.write(&placement.y.to_le_bytes()).expect("Should write y");
-            w.write(&placement.offset.to_le_bytes()).expect("Should write timestamp");
             w.write(&[placement.color_index]).expect("Should write color index");
-            last_offset = placement.offset as u64;
+            last_offset = placement.relative_offset as u64;
         }
 
         self.offset = last_offset;
@@ -61,12 +58,13 @@ impl<'a> Serializer<'a> {
 
     pub fn write_checkpoint(
         &mut self,
+        relative_offset: u64,
         color_index: &ColorIndex,
         width: u32,
         height: u32,
         pixels: &[u8]
     ) -> u64 {
-        let filename = format!("{:04}.png", self.index);
+        let filename = format!("{:06}.png", self.index);
         let path = Path::new(self.out_folder).join(filename);
         let file = File::create(path).expect("Should create file");
         let w = BufWriter::new(file);
@@ -91,21 +89,29 @@ impl<'a> Serializer<'a> {
         let mut writer = encoder.write_header().expect("Should write checkpoint PNG header");
         writer.write_image_data(&pixels).expect("Should write checkpoint file");
         self.index += 1;
-        self.manifest.checkpoint_offsets.push(self.offset);
+        self.manifest.checkpoint_offsets.push(relative_offset);
+        self.offset = relative_offset;
 
         return self.index - 1;
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use chrono::{Duration, Utc};
+    pub fn write_manifest(&self, color_index: &ColorIndex) {
+        let path = Path::new(self.out_folder).join("manifest.json");
+        let file = File::create(path).expect("Should create manifest file");
+        let mut w = BufWriter::new(file);
 
-    // Import everything from outer scope
-    use super::*;
+        let offsets: Vec<String> = self.manifest.checkpoint_offsets
+            .iter()
+            .map(|o| o.to_string())
+            .collect();
 
-    #[test]
-    fn test_write_png() {
-        
+        let colors: Vec<String> = color_index.0
+          .iter()
+          .map(|c| format!("\"{}\"", c))
+          .collect();
+
+
+        write!(w, "{{\"checkpoints\":[{}], \"color_index\":[{}]}}", offsets.join(","), colors.join(","))
+            .expect("Should write manifest");
     }
 }

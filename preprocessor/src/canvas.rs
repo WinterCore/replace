@@ -2,7 +2,7 @@ use crate::parser::{ColorIndex, PixelRecord};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CanvasPixelPlacement {
-    pub offset: i64,
+    pub relative_offset: i64,
     pub color_index: u8,
     pub x: u16,
     pub y: u16,
@@ -51,7 +51,7 @@ impl Canvas {
 
         let color_index = self.color_index.add(&record.color);
         let placement = CanvasPixelPlacement {
-            offset: record.timestamp - start_timestamp,
+            relative_offset: record.timestamp - start_timestamp,
             x: record.x,
             y: record.y,
             color_index,
@@ -113,7 +113,7 @@ mod tests {
         assert_eq!(canvas.color_index.0, vec!["#ffffff", "#ff0000", "#000000"]);
         assert_eq!(canvas.pixel_placements_buffer[0],
             CanvasPixelPlacement {
-                offset: 0,
+                relative_offset: 0,
                 color_index: 1,
                 x: 1,
                 y: 1,
@@ -121,7 +121,7 @@ mod tests {
         );
         assert_eq!(canvas.pixel_placements_buffer[1],
             CanvasPixelPlacement {
-                offset: 2000,
+                relative_offset: 2000,
                 color_index: 2,
                 x: 1,
                 y: 1,
@@ -129,7 +129,7 @@ mod tests {
         );
         assert_eq!(canvas.pixel_placements_buffer[2],
             CanvasPixelPlacement {
-                offset: 4000,
+                relative_offset: 4000,
                 color_index: 0,
                 x: 0,
                 y: 0,
