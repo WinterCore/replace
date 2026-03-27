@@ -42,7 +42,7 @@ impl Canvas {
     pub fn process_pixel_record(&mut self, record: &PixelRecord) -> CanvasPixelPlacement {
         let start_timestamp = match self.start_timestamp {
             None => {
-                let ts = record.timestamp.timestamp_millis();
+                let ts = record.timestamp;
                 self.start_timestamp = Some(ts);
                 ts
             },
@@ -51,7 +51,7 @@ impl Canvas {
 
         let color_index = self.color_index.add(&record.color);
         let placement = CanvasPixelPlacement {
-            offset: record.timestamp.timestamp_millis() - start_timestamp,
+            offset: record.timestamp - start_timestamp,
             x: record.x,
             y: record.y,
             color_index,
@@ -75,7 +75,7 @@ impl Canvas {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Duration, Utc};
+    use chrono::Utc;
 
     // Import everything from outer scope
     use super::*;
@@ -84,7 +84,7 @@ mod tests {
     fn test_process_pixel_record_adds_it_to_buffer() {
         let mut canvas = Canvas::new(4, 4);
 
-        let now = Utc::now();
+        let now = Utc::now().timestamp_millis();
 
         canvas.process_pixel_record(&PixelRecord {
             timestamp: now,
@@ -95,7 +95,7 @@ mod tests {
         });
 
         canvas.process_pixel_record(&PixelRecord {
-            timestamp: now + Duration::seconds(2),
+            timestamp: now + 2000,
             user_id: "b".to_string(),
             color: "#000000".to_string(),
             x: 1,
@@ -103,7 +103,7 @@ mod tests {
         });
 
         canvas.process_pixel_record(&PixelRecord {
-            timestamp: now + Duration::seconds(4),
+            timestamp: now + 4000,
             user_id: "c".to_string(),
             color: "#FFFFFF".to_string(),
             x: 0,
@@ -148,7 +148,7 @@ mod tests {
         ]);
 
         canvas.process_pixel_record(&PixelRecord {
-            timestamp: now + Duration::seconds(5),
+            timestamp: now + 5000,
             user_id: "c".to_string(),
             color: "#0000FF".to_string(),
             x: 3,

@@ -1,8 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct PixelRecord {
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: i64,
     pub user_id: String,
     pub color: String,
     pub x: u16,
@@ -21,10 +21,9 @@ impl PixelRecord {
         Self {
             x: raw_x.parse().unwrap_or(0),
             y: raw_y.parse().unwrap_or(0),
-            timestamp: NaiveDateTime::parse_from_str(
-                raw_timestamp,
-                "%Y-%m-%d %H:%M:%S%.f UTC"
-            ).expect("Should parse timestamp").and_utc(),
+            timestamp: NaiveDateTime::parse_from_str(raw_timestamp, "%Y-%m-%d %H:%M:%S%.f UTC")
+                .expect("Should parse timestamp").and_utc()
+                .timestamp_millis(),
             user_id: user_id.to_string(),
             color: color.to_string(),
         }

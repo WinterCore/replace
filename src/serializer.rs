@@ -44,13 +44,14 @@ impl<'a> Serializer<'a> {
             if placement.offset < 0 {
                 println!("UNEXPECTED PLACEMENT {:?}", placement);
             }
+
             assert!(placement.offset >= 0);
             let relative_offset = placement.offset as u64 - self.offset;
             assert!(relative_offset <= u16::MAX as u64);
 
-            w.write(&placement.offset.to_le_bytes()).expect("Should write timestamp");
             w.write(&placement.x.to_le_bytes()).expect("Should write x");
             w.write(&placement.y.to_le_bytes()).expect("Should write y");
+            w.write(&placement.offset.to_le_bytes()).expect("Should write timestamp");
             w.write(&[placement.color_index]).expect("Should write color index");
             last_offset = placement.offset as u64;
         }
