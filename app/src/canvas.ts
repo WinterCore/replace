@@ -299,8 +299,10 @@ export class Canvas extends LitElement {
       this.uploadPalette();
     }
 
-    this.uploadIndex();
-    this.draw();
+    if (changedProperties.has('data')) {
+      this.uploadIndex();
+      this.draw();
+    }
   }
 
   draw() {

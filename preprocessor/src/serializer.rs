@@ -33,7 +33,11 @@ impl<'a> Serializer<'a> {
         &mut self,
         placements: &[CanvasPixelPlacement],
     ) {
-        let filename = format!("{:06}-delta.bin", self.index);
+        if placements.is_empty() || self.index == 0 {
+          return;
+        }
+
+        let filename = format!("{:06}-delta.bin", self.index - 1);
         let path = Path::new(self.out_folder).join(filename);
         let file = File::create(path).expect("Should create file");
         let mut w = BufWriter::new(file);

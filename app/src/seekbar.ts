@@ -2,6 +2,9 @@ import {css, html, LitElement, type PropertyValues} from "lit";
 import {customElement, property, query, state} from "lit/decorators.js";
 import {clamp} from "./lib/math";
 
+type PlaybackState = 'backward' | 'paused' | 'forward';
+const SPEEDS = [1, 2, 5, 10, 30, 50, 100, 200, 500, 1000];
+
 interface ElementMeta {
   readonly x: number;
   readonly y: number;
@@ -23,6 +26,12 @@ export class Seekbar extends LitElement {
   @state()
   uiPosition: number = 0;
 
+  @state()
+  playbackState: PlaybackState = 'paused';
+
+  @state()
+  playbackSpeed: number = 1;
+
   @query('.track')
   track!: HTMLDivElement;
 
@@ -33,6 +42,7 @@ export class Seekbar extends LitElement {
     :host {
       height: 100%;
       display: block;
+      font-family: sans-serif;
     }
 
     .container {
@@ -40,6 +50,42 @@ export class Seekbar extends LitElement {
       left: 0;
       bottom: 0;
       right: 0;
+    }
+
+    .container .playback-speed {
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .controls {
+      padding: 0px 16px;
+      // mix-blend-mode: difference;
+      user-select: none;
+      display: flex;
+    }
+
+    .controls-inner {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgb(60 60 60 / 70%);
+      border-radius: 999px;
+      padding: 6px 10px;
+      opacity: 0.75;
+      transition: opacity 200ms ease-out;
+    }
+
+    .controls-inner:hover {
+      opacity: 1;
+    }
+
+    .controls svg {
+      cursor: pointer;
+    }
+
+    .controls svg.active {
+      fill: #50C878;
+      stroke: #50C878;
     }
 
     .track-draggable {
@@ -79,12 +125,11 @@ export class Seekbar extends LitElement {
     }
 
     .tooltip {
-      font-family: sans-serif;
       font-size: 14px;
       text-wrap: nowrap;
       position: absolute;
       background: rgb(64 64 64);
-      bottom: 100%;
+      bottom: 36px;
       padding: 6px 6px;
       transform: translateX(-50%);
       border-radius: 6px;
@@ -106,6 +151,8 @@ export class Seekbar extends LitElement {
 
   private seekDebounceTimeout = 0;
 
+  private playbackIntervalId = 0;
+
   protected willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('current')) {
       this.uiPosition = this.current;
@@ -116,6 +163,23 @@ export class Seekbar extends LitElement {
       this.seekDebounceTimeout = window.setTimeout(() => {
         this.dispatchEvent(new CustomEvent('change', { detail: this.uiPosition / this.length }));
       }, 100);
+    }
+
+    if (changedProperties.has('playbackState') || changedProperties.has('playbackSpeed')) {
+      clearInterval(this.playbackIntervalId);
+      if (this.playbackState === 'paused') {
+        return;
+      }
+
+      const normalPlaybackRate = 1000 / 5;
+      const delta = this.playbackState === 'forward'
+        ? normalPlaybackRate * this.playbackSpeed
+        : -normalPlaybackRate * this.playbackSpeed;
+
+      this.playbackIntervalId = setInterval(() => {
+        // Will be off by 100 because of the debounce above. not a big deal but it can be fixed by only using debounce in the drag code since that's where it's needed
+        this.uiPosition += delta;
+      }, 1000 / 5);
     }
   }
 
@@ -156,6 +220,15 @@ export class Seekbar extends LitElement {
 
   private hoverMeta: ElementMeta | null = null;
 
+  private timestampToReadableTime(timestamp: number): string {
+    const days = Math.floor(timestamp / 1000 / 60 / 60 / 24) + 1;
+    const hours = Math.floor(timestamp / 1000 / 60 / 60) % 24;
+    const minutes = Math.floor(timestamp / 1000 / 60) % 60;
+    const seconds = Math.floor(timestamp / 1000 % 60);
+
+    return `Day ${days} · ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
   handleHoverMouseMove = (evt: MouseEvent) => {
     if (!this.hoverMeta) {
       return;
@@ -171,12 +244,7 @@ export class Seekbar extends LitElement {
     const pct = offset / width;
     const timestamp = pct * this.length;
 
-    const days = Math.floor(timestamp / 1000 / 60 / 60 / 24) + 1;
-    const hours = Math.floor(timestamp / 1000 / 60 / 60) % 24;
-    const minutes = Math.floor(timestamp / 1000 / 60) % 60;
-    const seconds = Math.floor(timestamp / 1000 % 60);
-
-    this.tooltip.textContent = `Day ${days} · ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    this.tooltip.textContent = this.timestampToReadableTime(timestamp);
   };
 
   handleTrackMouseEnter = (evt: MouseEvent) => {
@@ -194,9 +262,34 @@ export class Seekbar extends LitElement {
     window.removeEventListener('mousemove', this.handleHoverMouseMove);
   };
 
+  handleSetPlaybackState = (state: PlaybackState) => () => {
+    this.playbackState = state;
+  };
+
+  handleTogglePlaybackSpeed = () => {
+    const currentSpeedIndex = SPEEDS.findIndex((x) => x === this.playbackSpeed);
+
+    if (currentSpeedIndex === -1) {
+      this.playbackSpeed = SPEEDS[0];
+      return;
+    }
+
+
+      this.playbackSpeed = SPEEDS[(currentSpeedIndex + 1) % SPEEDS.length];
+  };
+
   protected render() {
     return html`
       <div class="container">
+        <div class="controls">
+          <div class="controls-inner">
+            <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('backward')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="transform: rotate(180deg)" stroke-linejoin="round" class="lucide lucide-play-icon lucide-play ${this.playbackState === 'backward' ? 'active' : ''}"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('paused')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause-icon lucide-pause"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('forward')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play-icon lucide-play ${this.playbackState === 'forward' ? 'active' : ''}"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
+            <div class="playback-speed" @click=${this.handleTogglePlaybackSpeed}>${this.playbackSpeed}x</div>
+            <div style="margin-left: 10px">${this.timestampToReadableTime(this.current)}</div>
+          </div>
+        </div>
         <div class="tooltip"></div>
         <div class="track-draggable" @mouseenter=${this.handleTrackMouseEnter} @mousedown=${this.handleTrackMouseDown}>
           <div class="track">

@@ -32,7 +32,7 @@ export class App extends LitElement {
   isInitializing: boolean = true;
 
   @state()
-  playheadOffset: number = 10080_000;
+  playheadOffset: number = 0;
 
   @state()
   length: number = 0;
@@ -86,14 +86,14 @@ export class App extends LitElement {
     let i = 0;
 
     while (i < deltaView.byteLength) {
-      const relativeOffset = deltaView.getUint16(i + 0);
+      const relativeOffset = deltaView.getUint16(i + 0, true);
 
       if (relativeOffset >= diff) {
         break;
       }
 
-      const x = deltaView.getUint16(i + 2);
-      const y = deltaView.getUint16(i + 4);
+      const x = deltaView.getUint16(i + 2, true);
+      const y = deltaView.getUint16(i + 4, true);
       const colorIndex = deltaView.getUint8(i + 6);
 
       data[y * 2000 + x] = colorIndex;
@@ -137,6 +137,13 @@ export class App extends LitElement {
     }
 
     const fileIndex = checkpoint.index.toString().padStart(6, '0');
+
+    // We're still in the same checkpoint range
+    if (this.checkpointData.index === fileIndex) {
+      this.currentOffset = this.playheadOffset;
+      return;
+    }
+
     const checkpointFile = `${fileIndex}.bin`;
     const deltaFile = `${fileIndex}-delta.bin`;
 
@@ -185,6 +192,14 @@ export class App extends LitElement {
     fetchManifest()
       .then(() => this.fetchPlayheadCheckpoint())
       .catch(console.error);
+
+    // Start playback
+
+    /*
+    setInterval(() => {
+      this.playheadOffset += 5_000;
+    }, 500);
+    */
   }
 
   handleSeek(evt: CustomEvent<number>) {
