@@ -29,6 +29,10 @@ impl Sorter {
         }
     }
 
+    pub fn cleanup(&self) {
+        let _ = remove_dir_all("./tmp");
+    }
+
     fn get_input_file_paths(&self) -> Vec<PathBuf> {
         let cwd = env::current_dir().unwrap();
         let full_path = cwd.join(&self.input_folder);

@@ -47,10 +47,82 @@ export class App extends LitElement {
     deltaData: new Uint8Array(),
   };
 
+  @state()
+  showHelp = false;
+
   static styles = css`
     :host {
       display: block;
       height: 100%;
+    }
+
+    .help-toggle {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 200ms ease-out;
+    }
+
+    .help-toggle:hover {
+      opacity: 1;
+    }
+
+    .help-toggle svg {
+      stroke: white;
+    }
+
+    .help-card {
+      position: absolute;
+      top: 52px;
+      right: 16px;
+      z-index: 20;
+      background: rgb(40 40 40 / 92%);
+      border-radius: 10px;
+      padding: 16px 20px;
+      color: white;
+      font-family: sans-serif;
+      font-size: 14px;
+      min-width: 220px;
+      box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
+    }
+
+    .help-card h3 {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+    }
+
+    .help-card table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .help-card td {
+      padding: 3px 0;
+    }
+
+    .help-card td:first-child {
+      font-weight: bold;
+      padding-right: 16px;
+      white-space: nowrap;
+    }
+
+    .help-card .section {
+      color: #888;
+      font-size: 12px;
+      text-transform: uppercase;
+      padding-top: 10px;
+      padding-bottom: 4px;
+    }
+
+    kbd {
+      background: rgb(80 80 80);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: monospace;
+      font-size: 13px;
     }
   `
 
@@ -77,28 +149,28 @@ export class App extends LitElement {
     const diff = absoluteOffset - checkpointOffset;
 
     if (diff < 0) {
-      return new Uint8Array(checkpointData.buffer);
+      return new Uint8Array(checkpointData);
     }
 
     const deltaView = new DataView(deltaData.buffer);
-    const data = new Uint8Array(checkpointData.buffer);
+    const data = new Uint8Array(checkpointData);
 
     let i = 0;
 
     while (i < deltaView.byteLength) {
-      const relativeOffset = deltaView.getUint16(i + 0, true);
+      const relativeOffset = deltaView.getUint32(i + 0, true);
 
       if (relativeOffset >= diff) {
         break;
       }
 
-      const x = deltaView.getUint16(i + 2, true);
-      const y = deltaView.getUint16(i + 4, true);
-      const colorIndex = deltaView.getUint8(i + 6);
+      const x = deltaView.getUint16(i + 4, true);
+      const y = deltaView.getUint16(i + 6, true);
+      const colorIndex = deltaView.getUint8(i + 8);
 
       data[y * 2000 + x] = colorIndex;
 
-      i += 7;
+      i += 9;
     }
 
     return data;
@@ -212,6 +284,30 @@ export class App extends LitElement {
         .data=${this.data}
         .colorIndex=${this.manifest.color_index}>
       </replace-canvas>
+      <div class="help-toggle"
+        @mouseenter=${() => this.showHelp = true}
+        @mouseleave=${() => this.showHelp = false}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+      </div>
+      ${this.showHelp ? html`
+        <div class="help-card"
+          @mouseenter=${() => this.showHelp = true}
+          @mouseleave=${() => this.showHelp = false}>
+          <h3>Keyboard Shortcuts</h3>
+          <table>
+            <tr><td class="section" colspan="2">Playback</td></tr>
+            <tr><td><kbd>j</kbd></td><td>Play backward</td></tr>
+            <tr><td><kbd>k</kbd></td><td>Pause</td></tr>
+            <tr><td><kbd>l</kbd></td><td>Play forward</td></tr>
+            <tr><td><kbd>f</kbd></td><td>Cycle speed</td></tr>
+            <tr><td class="section" colspan="2">Canvas</td></tr>
+            <tr><td><kbd>=</kbd> / <kbd>-</kbd></td><td>Zoom in / out</td></tr>
+            <tr><td><kbd>Arrow keys</kbd></td><td>Pan</td></tr>
+            <tr><td>Scroll wheel</td><td>Zoom to cursor</td></tr>
+            <tr><td>Click + drag</td><td>Pan</td></tr>
+          </table>
+        </div>
+      ` : nothing}
       ${!this.isInitializing
         ? html`
           <replace-seekbar

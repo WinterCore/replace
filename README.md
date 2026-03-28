@@ -17,16 +17,16 @@ Raw binary snapshots of the full 2000x2000 canvas at adaptive intervals. Each ch
 
 ### Deltas
 
-Binary files containing individual pixel changes between checkpoints. Each pixel change is packed into 7 bytes:
+Binary files containing individual pixel changes between checkpoints. Each pixel change is packed into 9 bytes:
 
 | Field            | Size    | Type   |
 |------------------|---------|--------|
-| timestamp offset | 2 bytes | uint16 (ms from chunk start) |
+| timestamp offset | 4 bytes | uint16 (ms from chunk start) |
 | x                | 2 bytes | uint16 |
 | y                | 2 bytes | uint16 |
 | color index      | 1 byte  | uint8  |
 
-Delta files are pre-sorted by timestamp. The timestamp offset is relative to the chunk's start time, giving up to 65 seconds of range per chunk. Delta files are named alongside their checkpoint (e.g., `000001.bin` and `000001-delta.bin`).
+Delta files are pre-sorted by timestamp. The timestamp offset is relative to the chunk's start time. Delta files are named alongside their checkpoint (e.g., `000001.bin` and `000001-delta.bin`).
 
 ### Thumbnails
 
@@ -43,21 +43,23 @@ Checkpoints are raw binary files — a flat buffer of 2000×2000 palette indices
 ## Tasks
 
 ### Preprocessing (Rust)
-- [ ] Sort raw CSV data (external merge sort: sort each file, then k-way merge)
-- [ ] Parse CSV rows from gzip files (timestamp, user_id, pixel_color, coordinate)
-- [ ] Map hex colors to palette indices
-- [ ] Build in-memory canvas state (2000x2000 buffer of palette indices)
-- [ ] Generate checkpoint .bin files at adaptive intervals (1 min or 50k updates)
-- [ ] Pack deltas into binary files between checkpoints
+- [x] Sort raw CSV data (external merge sort: sort each file, then k-way merge)
+- [x] Parse CSV rows from gzip files (timestamp, user_id, pixel_color, coordinate)
+- [x] Map hex colors to palette indices
+- [x] Build in-memory canvas state (2000x2000 buffer of palette indices)
+- [x] Generate checkpoint .bin files at adaptive intervals (1 min or 50k updates)
+- [x] Pack deltas into binary files between checkpoints
+- [x] Write manifest JSON
 - [ ] Generate thumbnail sprite sheets for seekbar
-- [ ] Write manifest JSON
+- [x] r/place 2022 parsing support
+- [ ] r/place 2023 parsing support, because the canvas is bigger and the raw data is different.
 
 ### Viewer (Web)
-- [ ] Load manifest and set up data fetching
-- [ ] Render canvas with WebGL texture
-- [ ] Implement delta playback engine (apply deltas per frame)
-- [ ] Prefetch delta chunks ahead of playback position
+- [x] Load manifest and set up data fetching
+- [x] Render canvas with WebGL texture
+- [x] Implement delta playback engine (apply deltas per frame)
+- [x] Playback controls (play/pause, speed)
 - [ ] Seek to any point (load nearest checkpoint + replay deltas)
 - [ ] YouTube-style seekbar with drag-to-zoom
 - [ ] Thumbnail hover previews on seekbar
-- [ ] Playback controls (play/pause, speed)
+- [ ] Prefetch delta chunks ahead of playback position

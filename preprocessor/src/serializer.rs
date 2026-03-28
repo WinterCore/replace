@@ -47,10 +47,10 @@ impl<'a> Serializer<'a> {
         for placement in placements {
             assert!(placement.relative_offset >= 0);
             let relative_offset = placement.relative_offset as u64 - self.offset;
-            assert!(relative_offset <= u16::MAX as u64);
-            let relative_offset_u16 = relative_offset as u16;
+            assert!(relative_offset <= u32::MAX as u64);
+            let relative_offset_u32 = relative_offset as u32;
 
-            w.write(&relative_offset_u16.to_le_bytes()).expect("Should write timestamp");
+            w.write(&relative_offset_u32.to_le_bytes()).expect("Should write timestamp");
             w.write(&placement.x.to_le_bytes()).expect("Should write x");
             w.write(&placement.y.to_le_bytes()).expect("Should write y");
             w.write(&[placement.color_index]).expect("Should write color index");

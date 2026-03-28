@@ -33,7 +33,7 @@ fn main() {
     for record in iter {
         let delta_since_last_checkpoint = record.timestamp - last_checkpoint_absolute_timestamp;
 
-        if delta_since_last_checkpoint > 60 * 1000 || canvas.pixel_placements_buffer.len() >= 50_000 {
+        if delta_since_last_checkpoint > 3 * 60 * 1000 || canvas.pixel_placements_buffer.len() >= 200_000 {
             let delta_changes_len = canvas.pixel_placements_buffer.len();
             serializer.write_delta(&canvas.pixel_placements_buffer);
             canvas.apply_placements_buffer();
@@ -69,5 +69,6 @@ fn main() {
     }
 
     serializer.write_manifest(&canvas.color_index);
+    sorter.cleanup();
     println!("Done!");
 }

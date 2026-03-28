@@ -22,9 +22,9 @@ export class Seekbar extends LitElement {
   @property({ type: Number })
   current!: number;
 
-  // Local UI thumb position (for rendering purposes)
+  // playhead position (while dragging) which is applied with a debounce
   @state()
-  uiPosition: number = 0;
+  dragPosition: number = 0;
 
   @state()
   playbackState: PlaybackState = 'paused';
@@ -55,6 +55,7 @@ export class Seekbar extends LitElement {
     .container .playback-speed {
       cursor: pointer;
       font-weight: bold;
+      margin-left: 12px;
     }
 
     .controls {
@@ -142,11 +143,17 @@ export class Seekbar extends LitElement {
     }
   `
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener('keydown', this.handleKeyDown);
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
 
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('mouseup', this.handleMouseUp);
+    window.removeEventListener('keydown', this.handleKeyDown);
   }
 
   private seekDebounceTimeout = 0;
@@ -154,14 +161,14 @@ export class Seekbar extends LitElement {
   private playbackIntervalId = 0;
 
   protected willUpdate(changedProperties: PropertyValues) {
-    if (changedProperties.has('current')) {
-      this.uiPosition = this.current;
+    if (changedProperties.has('current') && !this.mouseDownMeta) {
+      this.dragPosition = this.current;
     }
 
-    if (changedProperties.has('uiPosition')) {
+    if (changedProperties.has('dragPosition')) {
       clearTimeout(this.seekDebounceTimeout);
       this.seekDebounceTimeout = window.setTimeout(() => {
-        this.dispatchEvent(new CustomEvent('change', { detail: this.uiPosition / this.length }));
+        this.dispatchEvent(new CustomEvent('change', { detail: this.dragPosition / this.length }));
       }, 100);
     }
 
@@ -171,15 +178,17 @@ export class Seekbar extends LitElement {
         return;
       }
 
-      const normalPlaybackRate = 1000 / 5;
+      const fps = 30;
+      const normalPlaybackRate = 1000 / fps;
       const delta = this.playbackState === 'forward'
         ? normalPlaybackRate * this.playbackSpeed
         : -normalPlaybackRate * this.playbackSpeed;
 
       this.playbackIntervalId = setInterval(() => {
         // Will be off by 100 because of the debounce above. not a big deal but it can be fixed by only using debounce in the drag code since that's where it's needed
-        this.uiPosition += delta;
-      }, 1000 / 5);
+        const updatedPosition = clamp(this.current + delta, 0, this.length);
+        this.dispatchEvent(new CustomEvent('change', { detail: updatedPosition / this.length }));
+      }, 1000 / fps);
     }
   }
 
@@ -196,7 +205,7 @@ export class Seekbar extends LitElement {
 
     const pct = (clientX - this.mouseDownMeta.left) / this.mouseDownMeta.width;
 
-    this.uiPosition = clamp(pct * this.length, 0, this.length);
+    this.dragPosition = clamp(pct * this.length, 0, this.length);
   };
 
   handleMouseUp = (evt: MouseEvent) => {
@@ -213,7 +222,7 @@ export class Seekbar extends LitElement {
     const { clientX } = evt;
 
     const pct = (clientX - left) / width;
-    this.uiPosition = clamp(pct * this.length, 0, this.length);
+    this.dragPosition = clamp(pct * this.length, 0, this.length);
     window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('mouseup', this.handleMouseUp, { once: true });
   }
@@ -262,6 +271,26 @@ export class Seekbar extends LitElement {
     window.removeEventListener('mousemove', this.handleHoverMouseMove);
   };
 
+  handleKeyDown = (e: KeyboardEvent) => {
+    switch (e.key) {
+      case 'j':
+        this.playbackState = this.playbackState === 'backward' ? 'paused' : 'backward';
+        break;
+      case 'k':
+        this.playbackState = 'paused';
+        break;
+      case 'l':
+        this.playbackState = this.playbackState === 'forward' ? 'paused' : 'forward';
+        break;
+      case 'f':
+        this.handleTogglePlaybackSpeed();
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
+
   handleSetPlaybackState = (state: PlaybackState) => () => {
     this.playbackState = state;
   };
@@ -293,8 +322,8 @@ export class Seekbar extends LitElement {
         <div class="tooltip"></div>
         <div class="track-draggable" @mouseenter=${this.handleTrackMouseEnter} @mousedown=${this.handleTrackMouseDown}>
           <div class="track">
-            <div class="progress" style="width: ${(this.uiPosition / this.length) * 100}%"></div>
-            <div class="thumb" style="left: ${(this.uiPosition / this.length) * 100}%"></div>
+            <div class="progress" style="width: ${(this.dragPosition / this.length) * 100}%"></div>
+            <div class="thumb" style="left: ${(this.dragPosition / this.length) * 100}%"></div>
           </div>
         </div>
       </div>

@@ -57,6 +57,10 @@ export class Canvas extends LitElement {
   cy = 1000;
   zoom = 1;
 
+  // Mouse position (canvas-relative)
+  mouseX = 0;
+  mouseY = 0;
+
   // Drag state
   dragging = false;
   dragStartX = 0;
@@ -150,6 +154,10 @@ export class Canvas extends LitElement {
   };
 
   onMouseMove = (e: MouseEvent) => {
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouseX = e.clientX - rect.left;
+    this.mouseY = e.clientY - rect.top;
+
     if (!this.dragging) return;
     const dx = e.clientX - this.dragStartX;
     const dy = e.clientY - this.dragStartY;
@@ -195,11 +203,15 @@ export class Canvas extends LitElement {
   };
 
   zoomBy(factor: number) {
+    const imgX = (this.mouseX - this.canvas.width / 2) / this.zoom + this.cx;
+    const imgY = (this.mouseY - this.canvas.height / 2) / this.zoom + this.cy;
+
     const minZoom = Math.min(this.canvas.width / 2000, this.canvas.height / 2000);
     const maxZoom = Math.min(this.canvas.width, this.canvas.height) / 30;
     this.zoom = Math.max(minZoom, Math.min(maxZoom, this.zoom * factor));
-    this.cx = this.clampCx(this.cx);
-    this.cy = this.clampCy(this.cy);
+
+    this.cx = this.clampCx(imgX - (this.mouseX - this.canvas.width / 2) / this.zoom);
+    this.cy = this.clampCy(imgY - (this.mouseY - this.canvas.height / 2) / this.zoom);
     this.draw();
   }
 
