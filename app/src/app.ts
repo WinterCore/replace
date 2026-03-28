@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import type {Manifest} from './types';
+import './index.css'
 
 import './canvas'
 import './seekbar'
@@ -55,18 +56,52 @@ export class App extends LitElement {
 
   abortController: AbortController = new AbortController();
 
-  getCheckpointIndex(timestamp: number): number | null {
-    let index = null;
-
+  findCheckpointForTimestamp(timestamp: number): { index: number, offset: number } | null {
     for (let i = this.manifest.checkpoints.length - 1; i >= 0; i -= 1) {
-      const checkpointStart = this.manifest.checkpoints[i];
+      const checkpoint = this.manifest.checkpoints[i];
 
-      if (timestamp >= checkpointStart) {
-        return i;
+      if (timestamp >= checkpoint) {
+        return { index: i, offset: checkpoint };
       }
     }
 
-    return index;
+    return null;
+  }
+
+  private applyDeltas(
+    absoluteOffset: number,
+    checkpointData: Uint8Array,
+    checkpointOffset: number,
+    deltaData: Uint8Array
+  ): Uint8Array {
+    const diff = absoluteOffset - checkpointOffset;
+
+    if (diff < 0) {
+      return new Uint8Array(checkpointData.buffer);
+    }
+
+    const deltaView = new DataView(deltaData.buffer);
+    const data = new Uint8Array(checkpointData.buffer);
+
+    let i = 0;
+
+    while (i < deltaView.byteLength) {
+      const relativeOffset = deltaView.getUint16(i + 0);
+
+      if (relativeOffset >= diff) {
+        break;
+      }
+
+      const x = deltaView.getUint16(i + 2);
+      const y = deltaView.getUint16(i + 4);
+      const colorIndex = deltaView.getUint8(i + 6);
+
+      data[y * 2000 + x] = colorIndex;
+
+      i += 7;
+    }
+
+    return data;
   }
 
   protected willUpdate(changedProperties: PropertyValues): void {
@@ -75,42 +110,18 @@ export class App extends LitElement {
     }
 
     if (changedProperties.has('currentOffset')) {
-      // Update data
-      this.data = this.checkpointData.pixelData;
+      // Apply deltas
+      const checkpoint = this.findCheckpointForTimestamp(this.playheadOffset);
+
+      if (checkpoint) {
+        this.data = this.applyDeltas(
+          this.playheadOffset,
+          this.checkpointData.pixelData,
+          checkpoint.offset,
+          this.checkpointData.deltaData
+        );
+      }
     }
-  }
-
-  async pixelDataFromPNG(pngBlob: Blob, colorIndex: ReadonlyArray<string>): Promise<Uint8Array> {
-    const img = new Image();
-    const objURL = URL.createObjectURL(pngBlob);
-    img.src = objURL;
-    await img.decode();
-    const c = new OffscreenCanvas(2000, 2000);
-    const ctx = c.getContext('2d')!;
-    ctx.drawImage(img, 0, 0);
-    const rgba = ctx.getImageData(0, 0, 2000, 2000).data;
-    URL.revokeObjectURL(objURL);
-
-    const indices = new Uint8Array(2000 * 2000);
-
-    const colorToIndex = new Map<number, number>();
-
-    for (let i = 0; i < colorIndex.length; i++) {
-      colorToIndex.set(parseInt(colorIndex[i].slice(1), 16), i);
-    }
-
-    for (let i = 0; i < indices.length; i++) {
-      const r = rgba[i * 4];
-      const g = rgba[i * 4 + 1];
-      const b = rgba[i * 4 + 2];
-
-      const color = (r << 16) | (g << 8) | b;
-
-      const index = colorToIndex.get(color);
-      indices[i] = index ?? 0;
-    }
-
-    return indices;
   }
 
   async fetchPlayheadCheckpoint() {
@@ -118,39 +129,39 @@ export class App extends LitElement {
 
     this.abortController = new AbortController();
 
-    const index = this.getCheckpointIndex(this.playheadOffset);
+    const checkpoint = this.findCheckpointForTimestamp(this.playheadOffset);
 
-    if (index === null) {
+    if (checkpoint === null) {
       console.error('fetchPlayheadCheckpoint: Invalid offset', this.playheadOffset);
       return;
     }
 
-    const fileIndex = index.toString().padStart(6, '0');
-    const checkpointFile = `${fileIndex}.png`;
+    const fileIndex = checkpoint.index.toString().padStart(6, '0');
+    const checkpointFile = `${fileIndex}.bin`;
     const deltaFile = `${fileIndex}-delta.bin`;
 
     this.isLoading = true;
 
-    const [checkpointResp, deltaResp] = await Promise.all([
-      fetch(`/data/${checkpointFile}`, { signal: this.abortController.signal }),
-      fetch(`/data/${deltaFile}`, { signal: this.abortController.signal }),
-    ]);
-
-    const [checkpointBlob, deltaBlob] = await Promise.all([
-      checkpointResp.blob(),
-      deltaResp.blob(),
+    const [checkpointBuffer, deltaBuffer] = await Promise.all([
+      fetch(`/data/${checkpointFile}`, { signal: this.abortController.signal })
+        .then((resp) => resp.blob())
+        .then((resp) => resp.arrayBuffer()),
+      fetch(`/data/${deltaFile}`, { signal: this.abortController.signal })
+        .then((resp) => resp.blob())
+        .then((resp) => resp.arrayBuffer()),
     ]);
 
     if (this.abortController.signal.aborted) {
       return;
     }
 
-    const deltaBytes = new Uint8Array(await deltaBlob.arrayBuffer());
+    const checkpointBytes = new Uint8Array(checkpointBuffer);
+    const deltaBytes = new Uint8Array(deltaBuffer);
 
     this.checkpointData = {
       index: fileIndex,
+      pixelData: checkpointBytes,
       deltaData: deltaBytes,
-      pixelData: await this.pixelDataFromPNG(checkpointBlob, this.manifest.color_index),
     };
 
     // Seek canvas to requested position after we've fetched the data

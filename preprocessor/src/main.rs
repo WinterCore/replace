@@ -4,18 +4,9 @@ mod serializer;
 mod sorter;
 
 use chrono::{TimeZone, Utc};
-use csv::StringRecord;
-use flate2::read::MultiGzDecoder;
 use std::env;
-use std::ffi::OsStr;
-use std::fs::{File, canonicalize, read_dir};
-use std::io::BufReader;
-use std::path::Path;
-use std::thread::sleep;
-use std::time::Duration;
 
 use crate::canvas::Canvas;
-use crate::parser::PixelRecord;
 use crate::serializer::Serializer;
 use crate::sorter::Sorter;
 
@@ -34,8 +25,8 @@ fn main() {
 
     let width: u32 = 2000;
     let height: u32 = 2000;
-    let mut serializer = Serializer::new("./data");
-    let mut canvas = Canvas::new(2000, 2000);
+    let mut serializer = Serializer::new("../app/public/data");
+    let mut canvas = Canvas::new(width, height);
 
     let mut last_checkpoint_absolute_timestamp: i64 = 0;
 
@@ -52,9 +43,6 @@ fn main() {
 
             let index = serializer.write_checkpoint(
                 checkpoint_offset as u64,
-                &canvas.color_index,
-                width,
-                height,
                 &canvas.pixels
             );
             last_checkpoint_absolute_timestamp = record.timestamp;
@@ -75,9 +63,6 @@ fn main() {
         canvas.apply_placements_buffer();
         let index = serializer.write_checkpoint(
             last_offset as u64,
-            &canvas.color_index,
-            width,
-            height,
             &canvas.pixels
         );
         println!("Wrote checkpoint {:?}, changes: {:?}, timestamp: {:?}", index, remaining_changes, Utc.timestamp_millis_opt(last_checkpoint_absolute_timestamp));
