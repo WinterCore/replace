@@ -1,18 +1,18 @@
 use std::{cmp::Ordering, collections::BinaryHeap, env, ffi::OsStr, fs::{File, canonicalize, create_dir_all, read_dir, remove_dir_all}, io::{BufReader, BufWriter}, path::{Path, PathBuf}, thread, time::{SystemTime, UNIX_EPOCH}};
 
-use chrono::DateTime;
 use csv::{Reader, StringRecord};
 use flate2::read::MultiGzDecoder;
 
-use crate::parser::PixelRecord;
+use crate::{detect::Year, parser::PixelRecord};
 
-pub struct Sorter {
+pub struct Sorter<'a> {
+    year: &'a Year,
     input_folder: PathBuf,
     working_folder: PathBuf
 }
 
-impl Sorter {
-    pub fn new(input_folder: PathBuf) -> Self {
+impl<'a> Sorter<'a> {
+    pub fn new(year: &'a Year, input_folder: PathBuf) -> Self {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -24,6 +24,7 @@ impl Sorter {
         create_dir_all(&working_folder).expect("Should create working folder");
 
         Self {
+            year,
             input_folder,
             working_folder,
         }
@@ -64,7 +65,7 @@ impl Sorter {
         // Read
         let mut pixel_records: Vec<PixelRecord> = rdr.records()
             .map(|x| x.expect("Should read record"))
-            .map(|x| PixelRecord::parse(x.into_iter().collect()))
+            .filter_map(|x| PixelRecord::parse(&self.year, x.into_iter().collect()))
             .collect();
 
         // Sort
@@ -76,8 +77,7 @@ impl Sorter {
             let mut record = StringRecord::new();
 
             let coords = format!("{},{}", pixel_record.x, pixel_record.y);
-            let timestamp = DateTime::from_timestamp_millis(pixel_record.timestamp).expect("Should create timestamp").format("%Y-%m-%d %H:%M:%S%.f UTC");
-            record.push_field(&timestamp.to_string());
+            record.push_field(&pixel_record.timestamp.to_string());
             record.push_field(&pixel_record.user_id);
             record.push_field(&pixel_record.color);
             record.push_field(&coords);
@@ -176,9 +176,16 @@ impl MergedRecords {
 
     pub fn read_record(reader: &mut Reader<BufReader<File>>) -> Option<PixelRecord> {
         let mut record = StringRecord::new();
-        match reader.read_record(&mut record) {
-            Ok(true) => Some(PixelRecord::parse(record.into_iter().collect())),
-            _ => None,
+
+        loop {
+            match reader.read_record(&mut record) {
+                Ok(true) => {
+                  if let Some(record) = PixelRecord::parse_intermediate(record.into_iter().collect()) {
+                    return Some(record);
+                  }
+                },
+                _ => return None,
+            }
         }
     }
 }
@@ -191,7 +198,7 @@ impl Iterator for MergedRecords {
             None => return None, // We're done
             Some(x) => x,
         };
-        
+
         // Replace removed entry
         if let Some(record) = Self::read_record(&mut self.files[file_index]) {
             self.heap.push(HeapEntry {

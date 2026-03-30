@@ -1,6 +1,6 @@
 use std::{fs::{File, create_dir_all}, io::{BufWriter, Write}, path::Path};
 
-use crate::{canvas::CanvasPixelPlacement, parser::ColorIndex};
+use crate::{canvas::CanvasPixelPlacement, detect::{Year, get_dimensions}, parser::ColorIndex};
 
 #[derive(Debug)]
 pub struct PlaybackManifest {
@@ -8,24 +8,24 @@ pub struct PlaybackManifest {
 }
 
 #[derive(Debug)]
-pub struct Serializer<'a> {
+pub struct Serializer<'a, 'b> {
+    year: &'b Year,
     manifest: PlaybackManifest,
     out_folder: &'a str,
     index: u64,
     offset: u64,
 }
 
-impl<'a> Serializer<'a> {
-    pub fn new(out_folder: &'a str) -> Self {
+impl<'a, 'b> Serializer<'a, 'b> {
+    pub fn new(year: &'b Year, out_folder: &'a str) -> Self {
         create_dir_all(out_folder).expect("Should create output folder");
 
         Self {
-            manifest: PlaybackManifest {
-                checkpoint_offsets: vec![],
-            },
+            year,
             out_folder,
             index: 0,
             offset: 0,
+            manifest: PlaybackManifest { checkpoint_offsets: vec![] },
         }
     }
 
@@ -94,8 +94,9 @@ impl<'a> Serializer<'a> {
           .map(|c| format!("\"{}\"", c))
           .collect();
 
+        let (width, height) = get_dimensions(&self.year);
 
-        write!(w, "{{\"checkpoints\":[{}], \"color_index\":[{}]}}", offsets.join(","), colors.join(","))
+        write!(w, "{{\"checkpoints\":[{}], \"color_index\":[{}], \"width\": {}, \"height\": {}}}", offsets.join(","), colors.join(","), width, height)
             .expect("Should write manifest");
     }
 }

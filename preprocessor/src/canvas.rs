@@ -38,7 +38,7 @@ impl Canvas {
             height,
         }
     }
-    
+
     pub fn process_pixel_record(&mut self, record: &PixelRecord) -> CanvasPixelPlacement {
         let start_timestamp = match self.start_timestamp {
             None => {
@@ -109,7 +109,7 @@ mod tests {
             x: 0,
             y: 0,
         });
-        
+
         assert_eq!(canvas.color_index.0, vec!["#ffffff", "#ff0000", "#000000"]);
         assert_eq!(canvas.pixel_placements_buffer[0],
             CanvasPixelPlacement {

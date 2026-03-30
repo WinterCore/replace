@@ -2,11 +2,13 @@ mod parser;
 mod canvas;
 mod serializer;
 mod sorter;
+mod detect;
 
 use chrono::{TimeZone, Utc};
 use std::env;
 
 use crate::canvas::Canvas;
+use crate::detect::{Year, detect_year, get_dimensions};
 use crate::serializer::Serializer;
 use crate::sorter::Sorter;
 
@@ -14,18 +16,19 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
      if args.len() < 2 {
-        println!("Usage: program <raw r/place data folder>");
+        println!("Usage: program [raw data folder]");
         return;
     }
 
     let folder = &args[1];
 
-    let sorter = Sorter::new(folder.into());
+    let year = detect_year(folder.into());
+    let (width, height) = get_dimensions(&year);
+
+    let sorter = Sorter::new(&year, folder.into());
     let iter = sorter.run();
 
-    let width: u32 = 2000;
-    let height: u32 = 2000;
-    let mut serializer = Serializer::new("../app/public/data");
+    let mut serializer = Serializer::new(&year, "../app/public/data");
     let mut canvas = Canvas::new(width, height);
 
     let mut last_checkpoint_absolute_timestamp: i64 = 0;

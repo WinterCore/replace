@@ -21,6 +21,8 @@ export class App extends LitElement {
   manifest: Manifest = {
     checkpoints: [],
     color_index: ['#ffffff'],
+    width: 2000,
+    height: 2000,
   };
 
   // Is loading checkpoint data
@@ -168,7 +170,7 @@ export class App extends LitElement {
       const y = deltaView.getUint16(i + 6, true);
       const colorIndex = deltaView.getUint8(i + 8);
 
-      data[y * 2000 + x] = colorIndex;
+      data[y * this.manifest.width + x] = colorIndex;
 
       i += 9;
     }
@@ -197,10 +199,6 @@ export class App extends LitElement {
   }
 
   async fetchPlayheadCheckpoint() {
-    this.abortController.abort();
-
-    this.abortController = new AbortController();
-
     const checkpoint = this.findCheckpointForTimestamp(this.playheadOffset);
 
     if (checkpoint === null) {
@@ -215,6 +213,10 @@ export class App extends LitElement {
       this.currentOffset = this.playheadOffset;
       return;
     }
+
+    this.abortController.abort();
+
+    this.abortController = new AbortController();
 
     const checkpointFile = `${fileIndex}.bin`;
     const deltaFile = `${fileIndex}-delta.bin`;
@@ -281,6 +283,8 @@ export class App extends LitElement {
   render() {
     return html`
       <replace-canvas
+        .imageWidth=${this.manifest.width}
+        .imageHeight=${this.manifest.height}
         .data=${this.data}
         .colorIndex=${this.manifest.color_index}>
       </replace-canvas>

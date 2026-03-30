@@ -22,11 +22,12 @@ uniform float u_paletteSize;
 uniform vec2 u_screenSize;
 uniform vec2 u_center;
 uniform float u_zoom;
+uniform vec2 u_imageSize;
 
 void main() {
   vec2 screenPos = v_texcoord * u_screenSize;
   vec2 imagePos = (screenPos - u_screenSize * 0.5) / u_zoom + u_center;
-  vec2 uv = imagePos / 2000.0;
+  vec2 uv = imagePos / u_imageSize;
 
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
     fragColor = vec4(0.1, 0.1, 0.1, 1.0);
@@ -51,6 +52,7 @@ export class Canvas extends LitElement {
   screenSizeLocation!: WebGLUniformLocation;
   centerLocation!: WebGLUniformLocation;
   zoomLocation!: WebGLUniformLocation;
+  imageSizeLocation!: WebGLUniformLocation;
 
   // Camera state
   cx = 1000;
@@ -67,6 +69,12 @@ export class Canvas extends LitElement {
   dragStartY = 0;
   dragStartCx = 0;
   dragStartCy = 0;
+
+  @property({ type: Number })
+  imageWidth!: number;
+
+  @property({ type: Number })
+  imageHeight!: number;
 
   @property({ type: Object })
   data!: Uint8Array;
@@ -110,17 +118,17 @@ export class Canvas extends LitElement {
   };
 
   fitToScreen() {
-    this.zoom = Math.min(this.canvas.width / 2000, this.canvas.height / 2000);
-    this.cx = 1000;
-    this.cy = 1000;
+    this.zoom = Math.min(this.canvas.width / this.imageWidth, this.canvas.height / this.imageHeight);
+    this.cx = this.imageWidth / 2;
+    this.cy = this.imageHeight / 2;
   }
 
   clampCx(cx: number): number {
-    return Math.max(0, Math.min(2000, cx));
+    return Math.max(0, Math.min(this.imageWidth, cx));
   }
 
   clampCy(cy: number): number {
-    return Math.max(0, Math.min(2000, cy));
+    return Math.max(0, Math.min(this.imageHeight, cy));
   }
 
   onWheel = (e: WheelEvent) => {
@@ -133,7 +141,7 @@ export class Canvas extends LitElement {
     const imgX = (mouseX - this.canvas.width / 2) / this.zoom + this.cx;
     const imgY = (mouseY - this.canvas.height / 2) / this.zoom + this.cy;
 
-    const minZoom = Math.min(this.canvas.width / 2000, this.canvas.height / 2000);
+    const minZoom = Math.min(this.canvas.width / this.imageWidth, this.canvas.height / this.imageHeight);
     const maxZoom = Math.min(this.canvas.width, this.canvas.height) / 30;
     const factor = e.deltaY > 0 ? 0.9 : 1.1;
     this.zoom = Math.max(minZoom, Math.min(maxZoom, this.zoom * factor));
@@ -206,7 +214,7 @@ export class Canvas extends LitElement {
     const imgX = (this.mouseX - this.canvas.width / 2) / this.zoom + this.cx;
     const imgY = (this.mouseY - this.canvas.height / 2) / this.zoom + this.cy;
 
-    const minZoom = Math.min(this.canvas.width / 2000, this.canvas.height / 2000);
+    const minZoom = Math.min(this.canvas.width / this.imageWidth, this.canvas.height / this.imageHeight);
     const maxZoom = Math.min(this.canvas.width, this.canvas.height) / 30;
     this.zoom = Math.max(minZoom, Math.min(maxZoom, this.zoom * factor));
 
@@ -251,7 +259,7 @@ export class Canvas extends LitElement {
     gl.enableVertexAttribArray(aTexcoord);
     gl.vertexAttribPointer(aTexcoord, 2, gl.FLOAT, false, 16, 8);
 
-    // Index texture: R8, 2000x2000, one byte per pixel
+    // Index texture: R8, one byte per pixel
     this.indexTexture = gl.createTexture()!;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.indexTexture);
@@ -276,6 +284,7 @@ export class Canvas extends LitElement {
     this.screenSizeLocation = gl.getUniformLocation(program, 'u_screenSize')!;
     this.centerLocation = gl.getUniformLocation(program, 'u_center')!;
     this.zoomLocation = gl.getUniformLocation(program, 'u_zoom')!;
+    this.imageSizeLocation = gl.getUniformLocation(program, 'u_imageSize')!;
 
     // Wheel listener on the canvas with passive: false to allow preventDefault
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
@@ -301,11 +310,15 @@ export class Canvas extends LitElement {
   uploadIndex() {
     const gl = this.gl;
     gl.activeTexture(gl.TEXTURE0);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 2000, 2000, 0, gl.RED, gl.UNSIGNED_BYTE, this.data);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, this.imageWidth, this.imageHeight, 0, gl.RED, gl.UNSIGNED_BYTE, this.data);
   }
 
   protected updated(changedProperties: PropertyValues): void {
     if (!this.gl || !this.data || !this.colorIndex) return;
+
+    if (changedProperties.has('imageWidth') || changedProperties.has('imageHeight')) {
+      this.fitToScreen();
+    }
 
     if (changedProperties.has('colorIndex')) {
       this.uploadPalette();
@@ -324,6 +337,7 @@ export class Canvas extends LitElement {
     gl.uniform2f(this.screenSizeLocation, this.canvas.width, this.canvas.height);
     gl.uniform2f(this.centerLocation, this.cx, this.cy);
     gl.uniform1f(this.zoomLocation, this.zoom);
+    gl.uniform2f(this.imageSizeLocation, this.imageWidth, this.imageHeight);
 
     gl.clearColor(0.1, 0.1, 0.1, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
