@@ -112,9 +112,9 @@ export class PlaybackController implements ReactiveController {
       return;
     }
 
-    try {
-      const abortController = new AbortController();
+    const abortController = new AbortController();
 
+    try {
       // TODO: Purge/cancel ONLY the no longer needed checkpoints
       Array.from(this.#checkpointMap.values())
         .forEach((asyncData) => asyncData.abortController?.abort())
@@ -145,7 +145,11 @@ export class PlaybackController implements ReactiveController {
 
       this.syncPixelDataWithPlayhead();
     } catch (err) {
-      console.error('syncCheckpointData failed!');
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      console.error('syncCheckpointData failed!', err);
 
       this.#checkpointMap.set(
         checkpoint.index,
@@ -170,20 +174,22 @@ export class PlaybackController implements ReactiveController {
     this.#playbackState = state;
 
     this.handlePlayback();
+    this.host.requestUpdate();
   }
 
   set playbackSpeed(speed: PlaybackSpeed) {
     this.#playbackSpeed = speed;
 
     this.handlePlayback();
+    this.host.requestUpdate();
   }
 
   set playheadOffset(offset: number) {
     this.#playheadOffset = offset;
 
     this.syncCheckpointData();
-
     this.handlePlayback();
+    this.host.requestUpdate();
   }
 
   #playbackIntervalId = 0;
@@ -204,7 +210,6 @@ export class PlaybackController implements ReactiveController {
     const manifest = this.manifest.unwrap();
 
     this.#playbackIntervalId = setInterval(() => {
-      console.log('fuck?');
       // Pause if required checkpoint isn't loaded yet
 
       // Sync on every frame

@@ -7,6 +7,7 @@ import './components/canvas'
 import './components/help-popup'
 import './components/seekbar'
 import {AsyncData} from './lib/async-data'
+import type {PlaybackState} from './types'
 
 @customElement('re-place')
 export class App extends LitElement {
@@ -29,6 +30,10 @@ export class App extends LitElement {
     this.playbackController.playbackSpeed = evt.detail;
   }
 
+  handleSetPlaybackState(evt: CustomEvent<PlaybackState>) {
+    this.playbackController.playbackState = evt.detail;
+  }
+
   render() {
     return html`
       ${
@@ -46,7 +51,8 @@ export class App extends LitElement {
               .current=${this.playbackController.playheadOffset}
               .playbackSpeed=${this.playbackController.playbackSpeed}
               .playbackState=${this.playbackController.playbackState}
-              @change=${this.handleSeek}
+              @playbackStateChange=${this.handleSetPlaybackState}
+              @playheadChange=${this.handleSeek}
               @togglePlaybackSpeed=${this.handleSetPlaybackSpeed}
             >
             </replace-seekbar>

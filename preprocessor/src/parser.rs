@@ -36,13 +36,16 @@ impl PixelRecord {
                 let color = input.get(2).expect("Should read color");
                 let raw_coordinates = input.get(3).expect("Should read coordinates");
 
-                let (raw_x, raw_y) = raw_coordinates
-                    .split_once(',')
-                    .expect("Should contain x/y coordinates");
+                let coords: Vec<&str> = raw_coordinates.split(',').collect();
+
+                // Skip moderation writes
+                if coords.len() != 2 {
+                    return None;
+                }
 
                 Some(Self {
-                    x: raw_x.parse().expect("Should parse x coord"),
-                    y: raw_y.parse().expect("Should parse y coord"),
+                    x: coords[0].parse().expect("Should parse x coord"),
+                    y: coords[1].parse().expect("Should parse y coord"),
                     timestamp: NaiveDateTime::parse_from_str(
                         raw_timestamp,
                         "%Y-%m-%d %H:%M:%S%.f UTC",

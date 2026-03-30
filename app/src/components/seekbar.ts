@@ -144,13 +144,13 @@ export class Seekbar extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('mouseup', this.handleMouseUp);
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
 
     window.removeEventListener('mousemove', this.handleMouseMove);
-    window.removeEventListener('mouseup', this.handleMouseUp);
     window.removeEventListener('keydown', this.handleKeyDown);
   }
 
@@ -159,13 +159,6 @@ export class Seekbar extends LitElement {
   protected willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('current') && !this.mouseDownMeta) {
       this.dragPosition = this.current;
-    }
-
-    if (changedProperties.has('dragPosition')) {
-      clearTimeout(this.seekDebounceTimeout);
-      this.seekDebounceTimeout = window.setTimeout(() => {
-        this.dispatchEvent(new CustomEvent('change', { detail: this.dragPosition / this.length }));
-      }, 100);
     }
   }
 
@@ -183,6 +176,11 @@ export class Seekbar extends LitElement {
     const pct = (clientX - this.mouseDownMeta.left) / this.mouseDownMeta.width;
 
     this.dragPosition = clamp(pct * this.length, 0, this.length);
+
+    clearTimeout(this.seekDebounceTimeout);
+    this.seekDebounceTimeout = window.setTimeout(() => {
+      this.dispatchEvent(new CustomEvent('playheadChange', { detail: this.dragPosition / this.length }));
+    }, 100);
   };
 
   handleMouseUp = (evt: MouseEvent) => {
@@ -199,9 +197,10 @@ export class Seekbar extends LitElement {
     const { clientX } = evt;
 
     const pct = (clientX - left) / width;
-    this.dragPosition = clamp(pct * this.length, 0, this.length);
+    this.dispatchEvent(new CustomEvent('playheadChange', { detail: pct }));
+    this.dragPosition = pct * this.length;
+
     window.addEventListener('mousemove', this.handleMouseMove);
-    window.addEventListener('mouseup', this.handleMouseUp, { once: true });
   }
 
   private hoverMeta: ElementMeta | null = null;
@@ -248,16 +247,20 @@ export class Seekbar extends LitElement {
     window.removeEventListener('mousemove', this.handleHoverMouseMove);
   };
 
+  handleSetPlaybackState = (state: PlaybackState) => () => {
+    this.dispatchEvent(new CustomEvent('playbackStateChange', { detail: state }));
+  };
+
   handleKeyDown = (e: KeyboardEvent) => {
     switch (e.key) {
       case 'j':
-        this.playbackState = this.playbackState === 'backward' ? 'paused' : 'backward';
+        this.handleSetPlaybackState(this.playbackState === 'backward' ? 'paused' : 'backward')();
         break;
       case 'k':
-        this.playbackState = 'paused';
+        this.handleSetPlaybackState('paused')();
         break;
       case 'l':
-        this.playbackState = this.playbackState === 'forward' ? 'paused' : 'forward';
+        this.handleSetPlaybackState(this.playbackState === 'forward' ? 'paused' : 'forward')();
         break;
       case 'f':
         this.handleTogglePlaybackSpeed();
@@ -266,10 +269,6 @@ export class Seekbar extends LitElement {
         return;
     }
     e.preventDefault();
-  };
-
-  handleSetPlaybackState = (state: PlaybackState) => () => {
-    this.playbackState = state;
   };
 
   handleTogglePlaybackSpeed = () => {

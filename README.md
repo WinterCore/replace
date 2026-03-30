@@ -52,14 +52,15 @@ Checkpoints are raw binary files — a flat buffer of 2000×2000 palette indices
 - [x] Write manifest JSON
 - [ ] Generate thumbnail sprite sheets for seekbar
 - [x] r/place 2022 parsing support
-- [ ] r/place 2023 parsing support, because the canvas is bigger and the raw data is different.
+- [x] r/place 2023 parsing support, because the canvas is bigger and the raw data is different.
+- [ ] Parse moderation records
 
 ### Viewer (Web)
 - [x] Load manifest and set up data fetching
 - [x] Render canvas with WebGL texture
 - [x] Implement delta playback engine (apply deltas per frame)
 - [x] Playback controls (play/pause, speed)
-- [ ] Seek to any point (load nearest checkpoint + replay deltas)
-- [ ] YouTube-style seekbar with drag-to-zoom
+- [x] Seek to any point (load nearest checkpoint + replay deltas)
+- [ ] YouTube-style seekbar with drag-up-to-zoom
 - [ ] Thumbnail hover previews on seekbar
 - [ ] Prefetch delta chunks ahead of playback position
