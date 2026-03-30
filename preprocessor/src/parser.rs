@@ -1,6 +1,6 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 
-use crate::detect::{Year, get_dimensions};
+use crate::detect::{get_dimensions, Year};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PixelRecord {
@@ -36,29 +36,38 @@ impl PixelRecord {
                 let color = input.get(2).expect("Should read color");
                 let raw_coordinates = input.get(3).expect("Should read coordinates");
 
-                let (raw_x, raw_y) = raw_coordinates.split_once(',').expect("Should contain x/y coordinates");
+                let (raw_x, raw_y) = raw_coordinates
+                    .split_once(',')
+                    .expect("Should contain x/y coordinates");
 
                 Some(Self {
-                    x: raw_x.parse().unwrap_or(0),
-                    y: raw_y.parse().unwrap_or(0),
-                    timestamp: NaiveDateTime::parse_from_str(raw_timestamp, "%Y-%m-%d %H:%M:%S%.f UTC")
-                        .expect("Should parse timestamp").and_utc()
-                        .timestamp_millis(),
+                    x: raw_x.parse().expect("Should parse x coord"),
+                    y: raw_y.parse().expect("Should parse y coord"),
+                    timestamp: NaiveDateTime::parse_from_str(
+                        raw_timestamp,
+                        "%Y-%m-%d %H:%M:%S%.f UTC",
+                    )
+                    .expect("Should parse timestamp")
+                    .and_utc()
+                    .timestamp_millis(),
                     user_id: user_id.to_string(),
                     color: color.to_string(),
                 })
-            },
+            }
             Year::RPlace2023 => {
                 let raw_timestamp = input.get(0).expect("Should read timestamp");
                 let user_id = input.get(1).expect("Should read user ID");
-                let raw_coordinates = input.get(2).expect("Should read coordinates").trim_matches('"');
+                let raw_coordinates = input
+                    .get(2)
+                    .expect("Should read coordinates")
+                    .trim_matches('"');
                 let color = input.get(3).expect("Should read color");
 
                 let coords: Vec<&str> = raw_coordinates.split(',').collect();
 
                 // Skip moderation writes
                 if coords.len() != 2 {
-                  return None
+                    return None;
                 }
 
                 let (width, height) = get_dimensions(year);
@@ -71,13 +80,17 @@ impl PixelRecord {
                 Some(Self {
                     x: x as u16,
                     y: y as u16,
-                    timestamp: NaiveDateTime::parse_from_str(raw_timestamp, "%Y-%m-%d %H:%M:%S%.f UTC")
-                        .expect("Should parse timestamp").and_utc()
-                        .timestamp_millis(),
+                    timestamp: NaiveDateTime::parse_from_str(
+                        raw_timestamp,
+                        "%Y-%m-%d %H:%M:%S%.f UTC",
+                    )
+                    .expect("Should parse timestamp")
+                    .and_utc()
+                    .timestamp_millis(),
                     user_id: user_id.to_string(),
                     color: color.to_string(),
                 })
-            },
+            }
         }
     }
 }
@@ -86,7 +99,7 @@ pub struct ColorIndex(pub Vec<String>);
 
 impl ColorIndex {
     pub fn new() -> Self {
-        Self (Vec::with_capacity(128))
+        Self(Vec::with_capacity(128))
     }
 
     pub fn find_index(&self, needle: &str) -> Option<u8> {

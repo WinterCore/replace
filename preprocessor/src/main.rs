@@ -1,21 +1,21 @@
-mod parser;
 mod canvas;
+mod detect;
+mod parser;
 mod serializer;
 mod sorter;
-mod detect;
 
 use chrono::{TimeZone, Utc};
 use std::env;
 
 use crate::canvas::Canvas;
-use crate::detect::{Year, detect_year, get_dimensions};
+use crate::detect::{detect_year, get_dimensions, Year};
 use crate::serializer::Serializer;
 use crate::sorter::Sorter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-     if args.len() < 2 {
+    if args.len() < 2 {
         println!("Usage: program [raw data folder]");
         return;
     }
@@ -36,24 +36,32 @@ fn main() {
     for record in iter {
         let delta_since_last_checkpoint = record.timestamp - last_checkpoint_absolute_timestamp;
 
-        if delta_since_last_checkpoint > 3 * 60 * 1000 || canvas.pixel_placements_buffer.len() >= 200_000 {
+        if delta_since_last_checkpoint > 3 * 60 * 1000
+            || canvas.pixel_placements_buffer.len() >= 200_000
+        {
             let delta_changes_len = canvas.pixel_placements_buffer.len();
             serializer.write_delta(&canvas.pixel_placements_buffer);
             canvas.apply_placements_buffer();
 
             // End of gap
-            let checkpoint_offset = record.timestamp - canvas.start_timestamp.unwrap_or(record.timestamp);
+            let checkpoint_offset =
+                record.timestamp - canvas.start_timestamp.unwrap_or(record.timestamp);
 
             let index = serializer.write_checkpoint(
                 checkpoint_offset as u64,
-                &canvas.pixels
+                &canvas.color_index,
+                &canvas.pixels,
             );
             last_checkpoint_absolute_timestamp = record.timestamp;
-            println!("Wrote checkpoint {:?}, changes: {:?}, timestamp: {:?}", index, delta_changes_len, Utc.timestamp_millis_opt(last_checkpoint_absolute_timestamp));
+            println!(
+                "Wrote checkpoint {:?}, changes: {:?}, timestamp: {:?}",
+                index,
+                delta_changes_len,
+                Utc.timestamp_millis_opt(last_checkpoint_absolute_timestamp)
+            );
         }
 
         canvas.process_pixel_record(&record);
-
 
         // println!("---------------------------------------------------\nFinished {:?}", Path::new(&path).file_name().unwrap());
     }
@@ -62,13 +70,20 @@ fn main() {
     // Flush any remaining changes
     if remaining_changes > 0 {
         serializer.write_delta(&canvas.pixel_placements_buffer);
-        let last_offset = canvas.pixel_placements_buffer.last().unwrap().relative_offset;
+        let last_offset = canvas
+            .pixel_placements_buffer
+            .last()
+            .unwrap()
+            .relative_offset;
         canvas.apply_placements_buffer();
-        let index = serializer.write_checkpoint(
-            last_offset as u64,
-            &canvas.pixels
+        let index =
+            serializer.write_checkpoint(last_offset as u64, &canvas.color_index, &canvas.pixels);
+        println!(
+            "Wrote checkpoint {:?}, changes: {:?}, timestamp: {:?}",
+            index,
+            remaining_changes,
+            Utc.timestamp_millis_opt(last_checkpoint_absolute_timestamp)
         );
-        println!("Wrote checkpoint {:?}, changes: {:?}, timestamp: {:?}", index, remaining_changes, Utc.timestamp_millis_opt(last_checkpoint_absolute_timestamp));
     }
 
     serializer.write_manifest(&canvas.color_index);

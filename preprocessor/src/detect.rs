@@ -1,5 +1,5 @@
 use flate2::read::MultiGzDecoder;
-use std::fs::{File, read_dir};
+use std::fs::{read_dir, File};
 use std::io::BufReader;
 use std::path::PathBuf;
 
@@ -11,8 +11,8 @@ use std::path::PathBuf;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Year {
-  RPlace2022,
-  RPlace2023
+    RPlace2022,
+    RPlace2023,
 }
 
 pub fn detect_year(folder: PathBuf) -> Year {
@@ -29,9 +29,13 @@ pub fn detect_year(folder: PathBuf) -> Year {
     let record = rdr.records().next().unwrap().unwrap();
     let timestamp: &str = &record[0];
 
-    if timestamp.starts_with("2023") { Year::RPlace2023 }
-    else if timestamp.starts_with("2022") { Year::RPlace2022 }
-    else { panic!("Unsupported data: {}", timestamp) }
+    if timestamp.starts_with("2023") {
+        Year::RPlace2023
+    } else if timestamp.starts_with("2022") {
+        Year::RPlace2022
+    } else {
+        panic!("Unsupported data: {}", timestamp)
+    }
 }
 
 pub fn get_dimensions(year: &Year) -> (u32, u32) {

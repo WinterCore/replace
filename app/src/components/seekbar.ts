@@ -1,9 +1,6 @@
 import {css, html, LitElement, type PropertyValues} from "lit";
 import {customElement, property, query, state} from "lit/decorators.js";
-import {clamp} from "./lib/math";
-
-type PlaybackState = 'backward' | 'paused' | 'forward';
-const SPEEDS = [1, 2, 5, 10, 30, 50, 100, 200, 500, 1000];
+import {clamp} from "../lib/math";
 
 interface ElementMeta {
   readonly x: number;
@@ -25,12 +22,6 @@ export class Seekbar extends LitElement {
   // playhead position (while dragging) which is applied with a debounce
   @state()
   dragPosition: number = 0;
-
-  @state()
-  playbackState: PlaybackState = 'paused';
-
-  @state()
-  playbackSpeed: number = 1;
 
   @query('.track')
   track!: HTMLDivElement;

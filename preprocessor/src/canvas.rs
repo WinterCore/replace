@@ -21,7 +21,6 @@ pub struct Canvas {
     pub pixel_placements_buffer: Vec<CanvasPixelPlacement>,
 }
 
-
 impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         let mut color_index = ColorIndex::new();
@@ -45,7 +44,7 @@ impl Canvas {
                 let ts = record.timestamp;
                 self.start_timestamp = Some(ts);
                 ts
-            },
+            }
             Some(start_timestamp) => start_timestamp,
         };
 
@@ -111,7 +110,8 @@ mod tests {
         });
 
         assert_eq!(canvas.color_index.0, vec!["#ffffff", "#ff0000", "#000000"]);
-        assert_eq!(canvas.pixel_placements_buffer[0],
+        assert_eq!(
+            canvas.pixel_placements_buffer[0],
             CanvasPixelPlacement {
                 relative_offset: 0,
                 color_index: 1,
@@ -119,7 +119,8 @@ mod tests {
                 y: 1,
             },
         );
-        assert_eq!(canvas.pixel_placements_buffer[1],
+        assert_eq!(
+            canvas.pixel_placements_buffer[1],
             CanvasPixelPlacement {
                 relative_offset: 2000,
                 color_index: 2,
@@ -127,7 +128,8 @@ mod tests {
                 y: 1,
             },
         );
-        assert_eq!(canvas.pixel_placements_buffer[2],
+        assert_eq!(
+            canvas.pixel_placements_buffer[2],
             CanvasPixelPlacement {
                 relative_offset: 4000,
                 color_index: 0,
@@ -140,12 +142,10 @@ mod tests {
 
         assert_eq!(canvas.pixel_placements_buffer.len(), 0);
 
-        assert_eq!(canvas.pixels, vec![
-            0, 0, 0, 0,
-            0, 2, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 0,
-        ]);
+        assert_eq!(
+            canvas.pixels,
+            vec![0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,]
+        );
 
         canvas.process_pixel_record(&PixelRecord {
             timestamp: now + 5000,
@@ -157,11 +157,9 @@ mod tests {
 
         canvas.apply_placements_buffer();
 
-        assert_eq!(canvas.pixels, vec![
-            0, 0, 0, 0,
-            0, 2, 0, 0,
-            0, 0, 0, 0,
-            0, 0, 0, 3,
-        ]);
+        assert_eq!(
+            canvas.pixels,
+            vec![0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3,]
+        );
     }
 }

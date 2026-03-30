@@ -3,8 +3,8 @@ import { customElement, state } from 'lit/decorators.js'
 import type {Manifest} from './types';
 import './index.css'
 
-import './canvas'
-import './seekbar'
+import './components/canvas'
+import './components/seekbar'
 
 interface CheckpointData {
   readonly index: string;
@@ -16,25 +16,6 @@ interface CheckpointData {
 export class App extends LitElement {
   @state()
   data: Uint8Array = new Uint8Array(2000 * 2000).fill(0);
-
-  @state()
-  manifest: Manifest = {
-    checkpoints: [],
-    color_index: ['#ffffff'],
-    width: 2000,
-    height: 2000,
-  };
-
-  // Is loading checkpoint data
-  @state()
-  isLoading: boolean = true;
-
-  // Is initializing manifest
-  @state()
-  isInitializing: boolean = true;
-
-  @state()
-  playheadOffset: number = 0;
 
   @state()
   length: number = 0;
@@ -129,18 +110,6 @@ export class App extends LitElement {
   `
 
   abortController: AbortController = new AbortController();
-
-  findCheckpointForTimestamp(timestamp: number): { index: number, offset: number } | null {
-    for (let i = this.manifest.checkpoints.length - 1; i >= 0; i -= 1) {
-      const checkpoint = this.manifest.checkpoints[i];
-
-      if (timestamp >= checkpoint) {
-        return { index: i, offset: checkpoint };
-      }
-    }
-
-    return null;
-  }
 
   private applyDeltas(
     absoluteOffset: number,
@@ -254,13 +223,7 @@ export class App extends LitElement {
     super.connectedCallback();
 
     const fetchManifest = async () => {
-      this.isInitializing = true;
-      const resp = await fetch('/data/manifest.json');
-      const json = await resp.json() as Manifest;
-      this.manifest = json;
-      this.length = json.checkpoints.at(-1)!;
 
-      this.isInitializing = false;
     };
 
     fetchManifest()

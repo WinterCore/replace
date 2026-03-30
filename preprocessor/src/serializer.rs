@@ -1,6 +1,14 @@
-use std::{fs::{File, create_dir_all}, io::{BufWriter, Write}, path::Path};
+use std::{
+    fs::{create_dir_all, File},
+    io::{BufWriter, Write},
+    path::Path,
+};
 
-use crate::{canvas::CanvasPixelPlacement, detect::{Year, get_dimensions}, parser::ColorIndex};
+use crate::{
+    canvas::CanvasPixelPlacement,
+    detect::{get_dimensions, Year},
+    parser::ColorIndex,
+};
 
 #[derive(Debug)]
 pub struct PlaybackManifest {
@@ -25,16 +33,15 @@ impl<'a, 'b> Serializer<'a, 'b> {
             out_folder,
             index: 0,
             offset: 0,
-            manifest: PlaybackManifest { checkpoint_offsets: vec![] },
+            manifest: PlaybackManifest {
+                checkpoint_offsets: vec![],
+            },
         }
     }
 
-    pub fn write_delta(
-        &mut self,
-        placements: &[CanvasPixelPlacement],
-    ) {
+    pub fn write_delta(&mut self, placements: &[CanvasPixelPlacement]) {
         if placements.is_empty() || self.index == 0 {
-          return;
+            return;
         }
 
         let filename = format!("{:06}-delta.bin", self.index - 1);
@@ -50,10 +57,12 @@ impl<'a, 'b> Serializer<'a, 'b> {
             assert!(relative_offset <= u32::MAX as u64);
             let relative_offset_u32 = relative_offset as u32;
 
-            w.write(&relative_offset_u32.to_le_bytes()).expect("Should write timestamp");
+            w.write(&relative_offset_u32.to_le_bytes())
+                .expect("Should write timestamp");
             w.write(&placement.x.to_le_bytes()).expect("Should write x");
             w.write(&placement.y.to_le_bytes()).expect("Should write y");
-            w.write(&[placement.color_index]).expect("Should write color index");
+            w.write(&[placement.color_index])
+                .expect("Should write color index");
             last_offset = placement.relative_offset as u64;
         }
 
@@ -63,14 +72,46 @@ impl<'a, 'b> Serializer<'a, 'b> {
     pub fn write_checkpoint(
         &mut self,
         relative_offset: u64,
-        pixels: &[u8]
+        color_index: &ColorIndex,
+        pixels: &[u8],
     ) -> u64 {
-        let filename = format!("{:06}.bin", self.index);
-        let path = Path::new(self.out_folder).join(filename);
-        let file = File::create(path).expect("Should create file");
+        let filename = format!("{:06}", self.index);
+
+        let bin_path = Path::new(self.out_folder).join(format!("{}.bin", filename));
+        let file = File::create(bin_path).expect("Should create file");
         let mut wtr = BufWriter::new(file);
 
         wtr.write_all(pixels).expect("Should write checkpoint file");
+
+        let png_path = Path::new(self.out_folder).join(format!("{}.png", filename));
+        let png_file = File::create(png_path).expect("Should create debug PNG file");
+        let png_writer = BufWriter::new(png_file);
+
+        let (width, height) = get_dimensions(self.year);
+        let mut encoder = png::Encoder::new(png_writer, width, height);
+
+        let mut palette: Vec<u8> = Vec::with_capacity(color_index.0.len() * 3);
+        for color in color_index.0.iter() {
+            assert!(color.starts_with('#'));
+            assert!(color.len() == 7);
+
+            let red = u8::from_str_radix(&color[1..3], 16).expect("Should parse red");
+            let green = u8::from_str_radix(&color[3..5], 16).expect("Should parse green");
+            let blue = u8::from_str_radix(&color[5..7], 16).expect("Should parse blue");
+
+            palette.extend_from_slice(&[red, green, blue]);
+        }
+
+        encoder.set_color(png::ColorType::Indexed);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_palette(palette);
+
+        let mut writer = encoder
+            .write_header()
+            .expect("Should write checkpoint PNG header");
+        writer
+            .write_image_data(pixels)
+            .expect("Should write checkpoint PNG data");
 
         self.index += 1;
         self.manifest.checkpoint_offsets.push(relative_offset);
@@ -84,19 +125,28 @@ impl<'a, 'b> Serializer<'a, 'b> {
         let file = File::create(path).expect("Should create manifest file");
         let mut w = BufWriter::new(file);
 
-        let offsets: Vec<String> = self.manifest.checkpoint_offsets
+        let offsets: Vec<String> = self
+            .manifest
+            .checkpoint_offsets
             .iter()
             .map(|o| o.to_string())
             .collect();
 
-        let colors: Vec<String> = color_index.0
-          .iter()
-          .map(|c| format!("\"{}\"", c))
-          .collect();
+        let colors: Vec<String> = color_index.0.iter().map(|c| format!("\"{}\"", c)).collect();
 
         let (width, height) = get_dimensions(&self.year);
 
-        write!(w, "{{\"checkpoints\":[{}], \"color_index\":[{}], \"width\": {}, \"height\": {}}}", offsets.join(","), colors.join(","), width, height)
-            .expect("Should write manifest");
+        let length = self.manifest.checkpoint_offsets.last().copied().unwrap_or(0);
+
+        write!(
+            w,
+            "{{\"checkpoints\":[{}], \"color_index\":[{}], \"width\": {}, \"height\": {}, \"length\": {}}}",
+            offsets.join(","),
+            colors.join(","),
+            width,
+            height,
+            length
+        )
+        .expect("Should write manifest");
     }
 }

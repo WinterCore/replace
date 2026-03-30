@@ -1,4 +1,14 @@
-use std::{cmp::Ordering, collections::BinaryHeap, env, ffi::OsStr, fs::{File, canonicalize, create_dir_all, read_dir, remove_dir_all}, io::{BufReader, BufWriter}, path::{Path, PathBuf}, thread, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    cmp::Ordering,
+    collections::BinaryHeap,
+    env,
+    ffi::OsStr,
+    fs::{canonicalize, create_dir_all, read_dir, remove_dir_all, File},
+    io::{BufReader, BufWriter},
+    path::{Path, PathBuf},
+    thread,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use csv::{Reader, StringRecord};
 use flate2::read::MultiGzDecoder;
@@ -8,7 +18,7 @@ use crate::{detect::Year, parser::PixelRecord};
 pub struct Sorter<'a> {
     year: &'a Year,
     input_folder: PathBuf,
-    working_folder: PathBuf
+    working_folder: PathBuf,
 }
 
 impl<'a> Sorter<'a> {
@@ -63,14 +73,14 @@ impl<'a> Sorter<'a> {
         let mut wtr = csv::WriterBuilder::new().from_writer(writer);
 
         // Read
-        let mut pixel_records: Vec<PixelRecord> = rdr.records()
+        let mut pixel_records: Vec<PixelRecord> = rdr
+            .records()
             .map(|x| x.expect("Should read record"))
             .filter_map(|x| PixelRecord::parse(&self.year, x.into_iter().collect()))
             .collect();
 
         // Sort
         pixel_records.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
 
         // Write
         for pixel_record in pixel_records {
@@ -82,9 +92,9 @@ impl<'a> Sorter<'a> {
             record.push_field(&pixel_record.color);
             record.push_field(&coords);
 
-            wtr.write_record(&record).expect("Should write sorted record");
+            wtr.write_record(&record)
+                .expect("Should write sorted record");
         }
-
 
         output_file_path
     }
@@ -109,14 +119,19 @@ impl<'a> Sorter<'a> {
         let batch_count = files.len().div_ceil(batch_size);
 
         for batch in 0..batch_count {
-            let chunk: Vec<&PathBuf> = files.iter().skip(batch * batch_size).take(batch_size).collect();
+            let chunk: Vec<&PathBuf> = files
+                .iter()
+                .skip(batch * batch_size)
+                .take(batch_size)
+                .collect();
 
             let chunk_output = thread::scope(|s| {
-                let handles: Vec<_> = chunk.iter().map(|file| s.spawn(|| self.sort_file(file))).collect();
-                let results: Vec<PathBuf> = handles
-                  .into_iter()
-                  .map(|h| h.join().unwrap())
-                  .collect();
+                let handles: Vec<_> = chunk
+                    .iter()
+                    .map(|file| s.spawn(|| self.sort_file(file)))
+                    .collect();
+                let results: Vec<PathBuf> =
+                    handles.into_iter().map(|h| h.join().unwrap()).collect();
 
                 results
             });
@@ -141,15 +156,14 @@ impl Ord for HeapEntry {
 }
 
 impl PartialOrd for HeapEntry {
-  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-      Some(self.cmp(other))
-  }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
-
 
 struct MergedRecords {
     files: Vec<Reader<BufReader<File>>>,
-    heap: BinaryHeap<HeapEntry>
+    heap: BinaryHeap<HeapEntry>,
 }
 
 impl MergedRecords {
@@ -168,10 +182,7 @@ impl MergedRecords {
             });
         }
 
-        Self {
-            files,
-            heap,
-        }
+        Self { files, heap }
     }
 
     pub fn read_record(reader: &mut Reader<BufReader<File>>) -> Option<PixelRecord> {
@@ -180,10 +191,12 @@ impl MergedRecords {
         loop {
             match reader.read_record(&mut record) {
                 Ok(true) => {
-                  if let Some(record) = PixelRecord::parse_intermediate(record.into_iter().collect()) {
-                    return Some(record);
-                  }
-                },
+                    if let Some(record) =
+                        PixelRecord::parse_intermediate(record.into_iter().collect())
+                    {
+                        return Some(record);
+                    }
+                }
                 _ => return None,
             }
         }
@@ -201,10 +214,7 @@ impl Iterator for MergedRecords {
 
         // Replace removed entry
         if let Some(record) = Self::read_record(&mut self.files[file_index]) {
-            self.heap.push(HeapEntry {
-                record,
-                file_index
-            });
+            self.heap.push(HeapEntry { record, file_index });
         }
 
         Some(record)
