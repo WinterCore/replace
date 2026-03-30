@@ -1,6 +1,8 @@
 import {css, html, LitElement, type PropertyValues} from "lit";
 import {customElement, property, query, state} from "lit/decorators.js";
 import {clamp} from "../lib/math";
+import type {PlaybackState} from "../types";
+import {SPEEDS, type PlaybackSpeed} from "../controllers/playback-controller";
 
 interface ElementMeta {
   readonly x: number;
@@ -11,6 +13,11 @@ interface ElementMeta {
 
 @customElement('replace-seekbar')
 export class Seekbar extends LitElement {
+  @property({ type: Number })
+  playbackSpeed!: PlaybackSpeed;
+
+  @property({ type: Number })
+  playbackState!: PlaybackState;
 
   @property({ type: Number })
   length!: number;
@@ -149,8 +156,6 @@ export class Seekbar extends LitElement {
 
   private seekDebounceTimeout = 0;
 
-  private playbackIntervalId = 0;
-
   protected willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('current') && !this.mouseDownMeta) {
       this.dragPosition = this.current;
@@ -161,25 +166,6 @@ export class Seekbar extends LitElement {
       this.seekDebounceTimeout = window.setTimeout(() => {
         this.dispatchEvent(new CustomEvent('change', { detail: this.dragPosition / this.length }));
       }, 100);
-    }
-
-    if (changedProperties.has('playbackState') || changedProperties.has('playbackSpeed')) {
-      clearInterval(this.playbackIntervalId);
-      if (this.playbackState === 'paused') {
-        return;
-      }
-
-      const fps = 30;
-      const normalPlaybackRate = 1000 / fps;
-      const delta = this.playbackState === 'forward'
-        ? normalPlaybackRate * this.playbackSpeed
-        : -normalPlaybackRate * this.playbackSpeed;
-
-      this.playbackIntervalId = setInterval(() => {
-        // Will be off by 100 because of the debounce above. not a big deal but it can be fixed by only using debounce in the drag code since that's where it's needed
-        const updatedPosition = clamp(this.current + delta, 0, this.length);
-        this.dispatchEvent(new CustomEvent('change', { detail: updatedPosition / this.length }));
-      }, 1000 / fps);
     }
   }
 
@@ -290,12 +276,15 @@ export class Seekbar extends LitElement {
     const currentSpeedIndex = SPEEDS.findIndex((x) => x === this.playbackSpeed);
 
     if (currentSpeedIndex === -1) {
-      this.playbackSpeed = SPEEDS[0];
+      this.dispatchEvent(new CustomEvent('togglePlaybackSpeed', { detail: SPEEDS[0] }));
       return;
     }
 
+    const nextSpeed = currentSpeedIndex === -1
+      ? SPEEDS[0]
+      : SPEEDS[(currentSpeedIndex + 1) % SPEEDS.length];
 
-      this.playbackSpeed = SPEEDS[(currentSpeedIndex + 1) % SPEEDS.length];
+    this.dispatchEvent(new CustomEvent('togglePlaybackSpeed', { detail: nextSpeed }));
   };
 
   protected render() {
