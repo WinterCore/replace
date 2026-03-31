@@ -4,6 +4,8 @@
 
 # Re/place
 
+![Re/place screenshot](screenshot.jpg)
+
 A local viewer for r/place that lets you scroll through the entire history and see pixel changes in realtime. Supports both r/place 2022 (2000x2000) and 2023 (3000x2000) datasets.
 
 ## Features
