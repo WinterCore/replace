@@ -95,6 +95,7 @@ export class HelpPopup extends LitElement {
             <tr><td><kbd>k</kbd></td><td>Pause</td></tr>
             <tr><td><kbd>l</kbd></td><td>Play forward</td></tr>
             <tr><td><kbd>f</kbd></td><td>Cycle speed</td></tr>
+            <tr><td><kbd>0</kbd>-<kbd>9</kbd></td><td>Jump to 0%-90%</td></tr>
             <tr><td class="section" colspan="2">Canvas</td></tr>
             <tr><td><kbd>=</kbd> / <kbd>-</kbd></td><td>Zoom in / out</td></tr>
             <tr><td><kbd>Arrow keys</kbd></td><td>Pan</td></tr>

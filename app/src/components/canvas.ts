@@ -90,11 +90,19 @@ export class Canvas extends LitElement {
   dragStartY = 0;
   dragStartCx = 0;
   dragStartCy = 0;
+  lastDragX = 0;
+  lastDragY = 0;
 
   // Touch state for pan/pinch
   lastTouchX = 0;
   lastTouchY = 0;
   lastPinchDist = 0;
+
+  // Inertia state: velocity in image-space pixels per millisecond
+  velocityX = 0;
+  velocityY = 0;
+  lastMoveTime = 0;
+  inertiaRaf = 0;
 
   @property({ type: Number })
   imageWidth!: number;
@@ -178,17 +186,76 @@ export class Canvas extends LitElement {
     const rect = this.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
+    const factor = e.deltaY > 0 ? 0.95 : 1.05;
     this.zoomAroundPoint(mouseX, mouseY, factor);
     this.draw();
   };
 
+  stopInertia() {
+    cancelAnimationFrame(this.inertiaRaf);
+    this.velocityX = 0;
+    this.velocityY = 0;
+  }
+
+  startInertia() {
+    const speed = Math.hypot(this.velocityX, this.velocityY);
+    if (speed < 0.01) return;
+
+    let lastTime = performance.now();
+
+    const tick = (now: number) => {
+      const dt = now - lastTime;
+      lastTime = now;
+
+      const friction = Math.pow(0.88, dt / 16);
+      this.velocityX *= friction;
+      this.velocityY *= friction;
+
+      this.cx = this.clampCx(this.cx - this.velocityX * dt);
+      this.cy = this.clampCy(this.cy - this.velocityY * dt);
+      this.draw();
+
+      if (Math.hypot(this.velocityX, this.velocityY) < 0.001) return;
+      this.inertiaRaf = requestAnimationFrame(tick);
+    };
+
+    this.inertiaRaf = requestAnimationFrame(tick);
+  }
+
+  /**
+   * Track velocity in image-space pixels/ms. Uses exponential moving average
+   * so the release velocity reflects recent movement, not the entire drag.
+   */
+  trackVelocity(screenDx: number, screenDy: number) {
+    const now = performance.now();
+    const dt = now - this.lastMoveTime;
+    this.lastMoveTime = now;
+
+    if (dt <= 0 || dt > 100) {
+      this.velocityX = 0;
+      this.velocityY = 0;
+      return;
+    }
+
+    const vx = screenDx / this.zoom / dt;
+    const vy = screenDy / this.zoom / dt;
+    const smoothing = 0.3;
+    this.velocityX = this.velocityX * (1 - smoothing) + vx * smoothing;
+    this.velocityY = this.velocityY * (1 - smoothing) + vy * smoothing;
+  }
+
   onMouseDown = (e: MouseEvent) => {
+    this.stopInertia();
     this.dragging = true;
     this.dragStartX = e.clientX;
     this.dragStartY = e.clientY;
+    this.lastDragX = e.clientX;
+    this.lastDragY = e.clientY;
     this.dragStartCx = this.cx;
     this.dragStartCy = this.cy;
+    this.lastMoveTime = performance.now();
+    this.velocityX = 0;
+    this.velocityY = 0;
   };
 
   onMouseMove = (e: MouseEvent) => {
@@ -197,6 +264,11 @@ export class Canvas extends LitElement {
     this.mouseY = e.clientY - rect.top;
 
     if (!this.dragging) return;
+
+    this.trackVelocity(e.clientX - this.lastDragX, e.clientY - this.lastDragY);
+    this.lastDragX = e.clientX;
+    this.lastDragY = e.clientY;
+
     const dx = e.clientX - this.dragStartX;
     const dy = e.clientY - this.dragStartY;
     this.cx = this.clampCx(this.dragStartCx - dx / this.zoom);
@@ -205,47 +277,84 @@ export class Canvas extends LitElement {
   };
 
   onMouseUp = () => {
-    this.dragging = false;
+    if (this.dragging) {
+      this.dragging = false;
+      this.startInertia();
+    }
   };
 
   onTouchStart = (e: TouchEvent) => {
     e.preventDefault();
-    if (e.touches.length === 1) {
-      this.lastTouchX = e.touches[0].clientX;
-      this.lastTouchY = e.touches[0].clientY;
-    } else if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      this.lastPinchDist = Math.hypot(dx, dy);
-      this.lastTouchX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      this.lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    this.stopInertia();
+    this.lastMoveTime = performance.now();
+    this.velocityX = 0;
+    this.velocityY = 0;
+    this.resetTouchState(e.touches);
+  };
+
+  onTouchEnd = (e: TouchEvent) => {
+    e.preventDefault();
+    // All fingers lifted — coast with inertia from the last pan velocity
+    if (e.touches.length === 0) {
+      this.startInertia();
+    } else {
+      // Finger count changed (e.g. 2→1), re-anchor so the next move
+      // doesn't compute a delta from the old midpoint
+      this.resetTouchState(e.touches);
     }
   };
 
+  /**
+   * Re-anchor touch tracking when finger count changes (start, or lift one finger).
+   * Stores the current touch position(s) so the next touchmove computes a
+   * zero delta from this point rather than jumping from stale coordinates.
+   */
+  resetTouchState(touches: TouchList) {
+    if (touches.length === 1) {
+      this.lastTouchX = touches[0].clientX;
+      this.lastTouchY = touches[0].clientY;
+      this.lastPinchDist = 0;
+    } else if (touches.length === 2) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      this.lastPinchDist = Math.hypot(dx, dy);
+      this.lastTouchX = (touches[0].clientX + touches[1].clientX) / 2;
+      this.lastTouchY = (touches[0].clientY + touches[1].clientY) / 2;
+    }
+  }
+
   onTouchMove = (e: TouchEvent) => {
     e.preventDefault();
+
+    // Single finger: pan the camera
     if (e.touches.length === 1) {
       const dx = e.touches[0].clientX - this.lastTouchX;
       const dy = e.touches[0].clientY - this.lastTouchY;
+      this.trackVelocity(dx, dy);
       this.cx = this.clampCx(this.cx - dx / this.zoom);
       this.cy = this.clampCy(this.cy - dy / this.zoom);
       this.lastTouchX = e.touches[0].clientX;
       this.lastTouchY = e.touches[0].clientY;
       this.draw();
-    } else if (e.touches.length === 2) {
+      return;
+    }
+
+    // Two fingers: simultaneous pan + pinch zoom
+    if (e.touches.length === 2) {
+      // Use the midpoint between fingers as the reference for both pan and zoom
       const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       const rect = this.canvas.getBoundingClientRect();
       const canvasMidX = midX - rect.left;
       const canvasMidY = midY - rect.top;
 
-      // Pan
+      // Pan: shift camera by midpoint movement since last frame
       const dx = midX - this.lastTouchX;
       const dy = midY - this.lastTouchY;
       this.cx = this.clampCx(this.cx - dx / this.zoom);
       this.cy = this.clampCy(this.cy - dy / this.zoom);
 
-      // Pinch zoom around midpoint between fingers
+      // Zoom: ratio of current finger distance to previous distance
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY,
@@ -379,6 +488,7 @@ export class Canvas extends LitElement {
     this.canvas.addEventListener('wheel', this.onWheel, { passive: false });
     this.canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     this.canvas.addEventListener('touchmove', this.onTouchMove, { passive: false });
+    this.canvas.addEventListener('touchend', this.onTouchEnd, { passive: false });
 
     this.onResize();
   }

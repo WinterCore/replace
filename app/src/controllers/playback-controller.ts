@@ -120,6 +120,9 @@ export class PlaybackController implements ReactiveController {
         .forEach((asyncData) => asyncData.abortController?.abort())
       this.#checkpointMap = new Map();
 
+      this.pixelData = this.pixelData.setLoading();
+      this.host.requestUpdate();
+
       // Fetch primary checkpoint
       this.#checkpointMap.set(
         checkpoint.index,

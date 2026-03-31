@@ -3,6 +3,7 @@ import {customElement, property, query, state} from "lit/decorators.js";
 import {clamp} from "../lib/math";
 import type {PlaybackState} from "../types";
 import {SPEEDS, type PlaybackSpeed} from "../controllers/playback-controller";
+import './loader';
 
 interface ElementMeta {
   readonly x: number;
@@ -25,6 +26,9 @@ export class Seekbar extends LitElement {
   // Real position (source of truth)
   @property({ type: Number })
   current!: number;
+
+  @property({ type: Boolean })
+  isLoading: boolean = false;
 
   // playhead position (while dragging) which is applied with a debounce
   @state()
@@ -252,6 +256,7 @@ export class Seekbar extends LitElement {
   };
 
   handleKeyDown = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     switch (e.key) {
       case 'j':
         this.handleSetPlaybackState(this.playbackState === 'backward' ? 'paused' : 'backward')();
@@ -264,6 +269,10 @@ export class Seekbar extends LitElement {
         break;
       case 'f':
         this.handleTogglePlaybackSpeed();
+        break;
+      case '0': case '1': case '2': case '3': case '4':
+      case '5': case '6': case '7': case '8': case '9':
+        this.dispatchEvent(new CustomEvent('playheadChange', { detail: parseInt(e.key) / 10 }));
         break;
       default:
         return;
@@ -296,6 +305,7 @@ export class Seekbar extends LitElement {
             <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('forward')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play-icon lucide-play ${this.playbackState === 'forward' ? 'active' : ''}"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
             <div class="playback-speed" @click=${this.handleTogglePlaybackSpeed}>${this.playbackSpeed}x</div>
             <div style="margin-left: 10px">${this.timestampToReadableTime(this.current)}</div>
+            ${this.isLoading ? html`<replace-loader style="margin-left: 6px; --loader-size: 18px;"></replace-loader>` : ''}
           </div>
         </div>
         <div class="tooltip"></div>
