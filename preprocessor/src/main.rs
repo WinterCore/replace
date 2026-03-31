@@ -1,16 +1,18 @@
 mod canvas;
-mod detect;
+mod year;
 mod parser;
 mod serializer;
 mod sorter;
 
 use chrono::{TimeZone, Utc};
 use std::env;
+use std::path::PathBuf;
 
 use crate::canvas::Canvas;
-use crate::detect::{detect_year, get_dimensions, Year};
+use crate::parser::create_parser;
 use crate::serializer::Serializer;
 use crate::sorter::Sorter;
+use crate::year::detect_year;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -20,16 +22,17 @@ fn main() {
         return;
     }
 
-    let folder = &args[1];
+    let folder = PathBuf::from(&args[1]);
+    let year = detect_year(&folder);
+    let parser = create_parser(&year);
+    let (width, height) = parser.dimensions();
 
-    let year = detect_year(folder.into());
-    let (width, height) = get_dimensions(&year);
-
-    let sorter = Sorter::new(&year, folder.into());
+    let sorter = Sorter::new(parser.as_ref(), folder);
     let iter = sorter.run();
 
-    let mut serializer = Serializer::new(&year, "../app/public/data");
-    let mut canvas = Canvas::new(width, height);
+    let output_folder = format!("../app/public/{}", year.get_folder_name());
+    let mut serializer = Serializer::new(width, height, &output_folder);
+    let mut canvas = Canvas::new(width as u32, height as u32);
 
     let mut last_checkpoint_absolute_timestamp: i64 = 0;
 

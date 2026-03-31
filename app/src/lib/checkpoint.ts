@@ -18,13 +18,13 @@ export const findCheckpointForTimestamp = (checkpoints: ReadonlyArray<number>, t
   return null;
 }
 
-export const fetchCheckpointData = async (index: number, abortController?: AbortController) => {
+export const fetchCheckpointData = async (index: number, basePath: string, abortController?: AbortController) => {
   const filenames = getCheckpointFilenames(index);
   const [checkpointBuffer, deltaBuffer] = await Promise.all([
-    fetch(`/data/${filenames.checkpoint}`, { signal: abortController?.signal })
+    fetch(`${basePath}/${filenames.checkpoint}`, { signal: abortController?.signal })
       .then((resp) => resp.blob())
       .then((resp) => resp.arrayBuffer()),
-    fetch(`/data/${filenames.delta}`, { signal: abortController?.signal })
+    fetch(`${basePath}/${filenames.delta}`, { signal: abortController?.signal })
       .then((resp) => resp.blob())
       .then((resp) => resp.arrayBuffer()),
   ]);

@@ -58,8 +58,7 @@ A JSON file listing all checkpoints with their timestamps, color palette, canvas
 - [x] Write manifest JSON
 - [x] r/place 2022 parsing support
 - [x] r/place 2023 parsing support
-- [ ] Generate thumbnail sprite sheets for seekbar
-- [ ] Parse moderation records
+- [x] Parse moderation records
 
 ### Viewer (Web)
 - [x] Load manifest and set up data fetching
@@ -73,5 +72,4 @@ A JSON file listing all checkpoints with their timestamps, color palette, canvas
 - [x] Checkpoint caching
 - [x] Loading state indicators
 - [ ] YouTube-style seekbar drag-up-to-zoom
-- [ ] Thumbnail hover previews on seekbar
 - [ ] Prefetch checkpoints ahead of playback position

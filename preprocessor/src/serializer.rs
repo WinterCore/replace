@@ -6,7 +6,6 @@ use std::{
 
 use crate::{
     canvas::CanvasPixelPlacement,
-    detect::{get_dimensions, Year},
     parser::ColorIndex,
 };
 
@@ -16,20 +15,22 @@ pub struct PlaybackManifest {
 }
 
 #[derive(Debug)]
-pub struct Serializer<'a, 'b> {
-    year: &'b Year,
+pub struct Serializer<'a> {
+    width: u16,
+    height: u16,
     manifest: PlaybackManifest,
     out_folder: &'a str,
     index: u64,
     offset: u64,
 }
 
-impl<'a, 'b> Serializer<'a, 'b> {
-    pub fn new(year: &'b Year, out_folder: &'a str) -> Self {
+impl<'a> Serializer<'a> {
+    pub fn new(width: u16, height: u16, out_folder: &'a str) -> Self {
         create_dir_all(out_folder).expect("Should create output folder");
 
         Self {
-            year,
+            width,
+            height,
             out_folder,
             index: 0,
             offset: 0,
@@ -87,8 +88,7 @@ impl<'a, 'b> Serializer<'a, 'b> {
         let png_file = File::create(png_path).expect("Should create debug PNG file");
         let png_writer = BufWriter::new(png_file);
 
-        let (width, height) = get_dimensions(self.year);
-        let mut encoder = png::Encoder::new(png_writer, width, height);
+        let mut encoder = png::Encoder::new(png_writer, self.width as u32, self.height as u32);
 
         let mut palette: Vec<u8> = Vec::with_capacity(color_index.0.len() * 3);
         for color in color_index.0.iter() {
@@ -134,8 +134,6 @@ impl<'a, 'b> Serializer<'a, 'b> {
 
         let colors: Vec<String> = color_index.0.iter().map(|c| format!("\"{}\"", c)).collect();
 
-        let (width, height) = get_dimensions(&self.year);
-
         let length = self.manifest.checkpoint_offsets.last().copied().unwrap_or(0);
 
         write!(
@@ -143,8 +141,8 @@ impl<'a, 'b> Serializer<'a, 'b> {
             "{{\"checkpoints\":[{}], \"color_index\":[{}], \"width\": {}, \"height\": {}, \"length\": {}}}",
             offsets.join(","),
             colors.join(","),
-            width,
-            height,
+            self.width,
+            self.height,
             length
         )
         .expect("Should write manifest");

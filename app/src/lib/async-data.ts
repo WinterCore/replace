@@ -63,7 +63,31 @@ export class AsyncData<T, E = string> {
     const renderLoadingMode = opts.renderLoading ?? 'always';
 
     if (this.error !== null) {
-      const renderError = opts.error ?? ((e: E) => html`<div class="async-error">${e}</div>`);
+      const renderError = opts.error ?? ((e: E) => html`
+        <div style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          font-family: sans-serif;
+          color: #e0e0e0;
+          text-align: center;
+        ">
+          <div style="
+            margin-bottom: 12px;
+            opacity: 0.4;
+          "><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+          <div style="
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+          ">Something went wrong</div>
+          <div style="
+            font-size: 14px;
+            opacity: 0.6;
+          ">${e}</div>
+        </div>
+      `);
       return renderError(this.error);
     }
 

@@ -7,6 +7,9 @@ import {clamp} from "../lib/math";
 export const SPEEDS = [1, 2, 5, 10, 30, 50, 100, 200, 500, 1000] as const;
 export type PlaybackSpeed = typeof SPEEDS[number];
 
+export const YEARS = ['2022', '2023'] as const;
+export type Year = typeof YEARS[number];
+
 export class PlaybackController implements ReactiveController {
   private host: ReactiveControllerHost;
 
@@ -17,6 +20,7 @@ export class PlaybackController implements ReactiveController {
   #playheadOffset: number = 0;
   #playbackSpeed: PlaybackSpeed = 1;
   #playbackState: PlaybackState = 'paused';
+  #year: Year = '2023';
 
   public pixelData: AsyncData<Uint8Array> = new AsyncData();
 
@@ -27,17 +31,60 @@ export class PlaybackController implements ReactiveController {
     host.addController(this);
   }
 
+  get year() {
+    return this.#year;
+  }
+
+  get basePath() {
+    return `/${this.#year}-data`;
+  }
+
+  set year(year: Year) {
+    if (year === this.#year) return;
+
+    // Abort all in-flight requests
+    this.manifest.abortController?.abort();
+    Array.from(this.#checkpointMap.values())
+      .forEach((asyncData) => asyncData.abortController?.abort());
+
+    // Reset state
+    this.#year = year;
+    this.#playheadOffset = 0;
+    this.#playbackState = 'paused';
+    this.#checkpointMap = new Map();
+    this.manifest = new AsyncData();
+    this.pixelData = new AsyncData();
+
+    clearInterval(this.#playbackIntervalId);
+
+    this.host.requestUpdate();
+
+    this.init().catch(console.error);
+  }
+
   private async fetchManifest() {
     const abortController = new AbortController();
-    this.manifest = this.manifest.setLoading(abortController);
 
-    const resp = await fetch('/data/manifest.json', { signal: abortController.signal });
-    const manifest = await resp.json() as Manifest;
+    try {
+      this.manifest = this.manifest.setLoading(abortController);
 
-    this.manifest = this.manifest.setData(manifest);
+      const resp = await fetch(`${this.basePath}/manifest.json`, { signal: abortController.signal });
+      const manifest = await resp.json() as Manifest;
 
-    const length = manifest.width * manifest.height;
-    this.pixelData = this.pixelData.setData(new Uint8Array(length).fill(0));
+      const length = manifest.width * manifest.height;
+
+      this.manifest = this.manifest.setData(manifest);
+      this.pixelData = this.pixelData.setData(new Uint8Array(length).fill(0));
+      this.host.requestUpdate();
+    } catch (err) {
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      this.pixelData = this.pixelData.setError("Failed to load manifest!");
+      this.host.requestUpdate();
+      throw err;
+    }
   }
 
   private isPlayheadCheckpointDataAvailable(): boolean {
@@ -132,7 +179,7 @@ export class PlaybackController implements ReactiveController {
       const {
         checkpointBuffer,
         deltaBuffer,
-      } = await fetchCheckpointData(checkpoint.index, abortController);
+      } = await fetchCheckpointData(checkpoint.index, this.basePath, abortController);
 
       const checkpointData = new Uint8Array(checkpointBuffer);
       const deltaData = new Uint8Array(deltaBuffer);
@@ -228,13 +275,13 @@ export class PlaybackController implements ReactiveController {
     }, 1000 / fps);
   }
 
-  hostConnected(): void {
-    const init = async () => {
-      await this.fetchManifest();
-      await this.syncCheckpointData()
-      this.syncPixelDataWithPlayhead()
-    };
+  private async init() {
+    await this.fetchManifest();
+    await this.syncCheckpointData();
+    this.syncPixelDataWithPlayhead();
+  }
 
-    init().catch(console.error);
+  hostConnected(): void {
+    this.init().catch(console.error);
   }
 }

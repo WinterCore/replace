@@ -40,6 +40,7 @@ export class Seekbar extends LitElement {
   @query('.tooltip')
   tooltip!: HTMLDivElement;
 
+
   static styles = css`
     :host {
       height: 100%;
@@ -225,7 +226,11 @@ export class Seekbar extends LitElement {
 
     const { left, width } = this.hoverMeta;
 
-    const tooltipLeft = clamp(evt.clientX, left, left + width);
+    const padding = 8;
+    const tooltipHalf = this.tooltip.offsetWidth / 2;
+    const minLeft = tooltipHalf + padding;
+    const maxLeft = window.innerWidth - tooltipHalf - padding;
+    const tooltipLeft = clamp(evt.clientX, minLeft, maxLeft);
 
     this.tooltip.style.left = `${tooltipLeft}px`;
 

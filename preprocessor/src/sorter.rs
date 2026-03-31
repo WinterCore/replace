@@ -13,16 +13,16 @@ use std::{
 use csv::{Reader, StringRecord};
 use flate2::read::MultiGzDecoder;
 
-use crate::{detect::Year, parser::PixelRecord};
+use crate::parser::{PixelParser, PixelRecord, expand};
 
 pub struct Sorter<'a> {
-    year: &'a Year,
+    parser: &'a dyn PixelParser,
     input_folder: PathBuf,
     working_folder: PathBuf,
 }
 
 impl<'a> Sorter<'a> {
-    pub fn new(year: &'a Year, input_folder: PathBuf) -> Self {
+    pub fn new(parser: &'a dyn PixelParser, input_folder: PathBuf) -> Self {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -34,7 +34,7 @@ impl<'a> Sorter<'a> {
         create_dir_all(&working_folder).expect("Should create working folder");
 
         Self {
-            year,
+            parser,
             input_folder,
             working_folder,
         }
@@ -72,11 +72,13 @@ impl<'a> Sorter<'a> {
         let writer = BufWriter::new(output_file);
         let mut wtr = csv::WriterBuilder::new().from_writer(writer);
 
-        // Read
+        // Parse raw records, expand moderation actions into individual pixels
+        let (width, height) = self.parser.dimensions();
         let mut pixel_records: Vec<PixelRecord> = rdr
             .records()
             .map(|x| x.expect("Should read record"))
-            .filter_map(|x| PixelRecord::parse(&self.year, x.into_iter().collect()))
+            .map(|x| self.parser.parse(x.into_iter().collect()))
+            .flat_map(|action| expand(action, width, height))
             .collect();
 
         // Sort
