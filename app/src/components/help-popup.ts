@@ -7,14 +7,15 @@ export class HelpPopup extends LitElement {
   show = false;
 
   static styles = css`
+    :host {
+      display: block;
+    }
+
     .help-toggle {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      z-index: 20;
       cursor: pointer;
       opacity: 0.5;
       transition: opacity 200ms ease-out;
+      height: 24px;
     }
 
     .help-toggle:hover {
@@ -26,10 +27,10 @@ export class HelpPopup extends LitElement {
     }
 
     .help-card {
-      position: absolute;
+      position: fixed;
       top: 52px;
       right: 16px;
-      z-index: 20;
+      z-index: 30;
       background: rgb(40 40 40 / 92%);
       border-radius: 10px;
       padding: 16px 20px;

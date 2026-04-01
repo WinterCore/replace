@@ -39,7 +39,9 @@ in vec2 v_texcoord;
 out vec4 fragColor;
 uniform sampler2D u_index;
 uniform sampler2D u_palette;
+uniform sampler2D u_highlight;
 uniform float u_paletteSize;
+uniform float u_highlightEnabled;
 uniform vec2 u_screenSize;
 uniform vec2 u_center;
 uniform float u_zoom;
@@ -58,6 +60,12 @@ void main() {
   float index = texture(u_index, uv).r * 255.0;
   float u = (index + 0.5) / u_paletteSize;
   fragColor = texture(u_palette, vec2(u, 0.5));
+
+  if (u_highlightEnabled > 0.5) {
+    float mask = texture(u_highlight, uv).r;
+    float brightness = mix(0.3, 1.0, mask);
+    fragColor.rgb *= brightness;
+  }
 }
 `;
 
@@ -69,7 +77,9 @@ export class Canvas extends LitElement {
   gl!: WebGL2RenderingContext;
   indexTexture!: WebGLTexture;
   paletteTexture!: WebGLTexture;
+  highlightTexture!: WebGLTexture;
   paletteSizeLocation!: WebGLUniformLocation;
+  highlightEnabledLocation!: WebGLUniformLocation;
   screenSizeLocation!: WebGLUniformLocation;
   centerLocation!: WebGLUniformLocation;
   zoomLocation!: WebGLUniformLocation;
@@ -115,6 +125,9 @@ export class Canvas extends LitElement {
 
   @property({ type: Array })
   colorIndex!: ReadonlyArray<string>;
+
+  @property({ type: Object })
+  highlights: Uint16Array | null = null;
 
   static styles = css`
     :host {
@@ -475,10 +488,22 @@ export class Canvas extends LitElement {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+    // Highlight mask texture (R8): one byte per pixel, 0 = dim, 255 = highlight
+    this.highlightTexture = gl.createTexture()!;
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.highlightTexture);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
     // Bind texture units to sampler uniforms
     gl.uniform1i(gl.getUniformLocation(program, 'u_index'), 0);
     gl.uniform1i(gl.getUniformLocation(program, 'u_palette'), 1);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_highlight'), 2);
     this.paletteSizeLocation = gl.getUniformLocation(program, 'u_paletteSize')!;
+    this.highlightEnabledLocation = gl.getUniformLocation(program, 'u_highlightEnabled')!;
     this.screenSizeLocation = gl.getUniformLocation(program, 'u_screenSize')!;
     this.centerLocation = gl.getUniformLocation(program, 'u_center')!;
     this.zoomLocation = gl.getUniformLocation(program, 'u_zoom')!;
@@ -514,6 +539,22 @@ export class Canvas extends LitElement {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, this.imageWidth, this.imageHeight, 0, gl.RED, gl.UNSIGNED_BYTE, this.data);
   }
 
+  uploadHighlights() {
+    const gl = this.gl;
+    const mask = new Uint8Array(this.imageWidth * this.imageHeight);
+
+    if (this.highlights) {
+      for (let i = 0; i < this.highlights.length; i += 2) {
+        const x = this.highlights[i];
+        const y = this.highlights[i + 1];
+        mask[y * this.imageWidth + x] = 255;
+      }
+    }
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, this.imageWidth, this.imageHeight, 0, gl.RED, gl.UNSIGNED_BYTE, mask);
+  }
+
   protected updated(changedProperties: PropertyValues): void {
     if (!this.gl || !this.data || !this.colorIndex) return;
 
@@ -523,6 +564,16 @@ export class Canvas extends LitElement {
 
     if (changedProperties.has('colorIndex')) {
       this.uploadPalette();
+    }
+
+    if (changedProperties.has('highlights')) {
+      if (this.highlights) {
+        this.uploadHighlights();
+        this.gl.uniform1f(this.highlightEnabledLocation, 1.0);
+      } else {
+        this.gl.uniform1f(this.highlightEnabledLocation, 0.0);
+      }
+      this.draw();
     }
 
     if (changedProperties.has('data')) {

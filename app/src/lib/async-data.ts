@@ -97,8 +97,12 @@ export class AsyncData<T, E = string> {
       return renderLoadingFn();
     }
 
-    if (this.data === AsyncData.Empty) {
+    if (this.data === AsyncData.Empty && this.isLoading) {
       return renderLoadingFn();
+    }
+
+    if (this.data === AsyncData.Empty) {
+      return nothing;
     }
 
     const renderData = opts.data ?? (() => nothing);

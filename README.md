@@ -75,3 +75,7 @@ A JSON file listing all checkpoints with their timestamps, color palette, canvas
 - [x] Loading state indicators
 - [ ] YouTube-style seekbar drag-up-to-zoom
 - [ ] Prefetch checkpoints ahead of playback position
+
+## Special Thanks
+
+- [Woutervdvelde/AmongiAnalyser](https://github.com/Woutervdvelde/AmongiAnalyser) — amongi detection algorithm

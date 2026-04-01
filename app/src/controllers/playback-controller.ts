@@ -275,6 +275,34 @@ export class PlaybackController implements ReactiveController {
     }, 1000 / fps);
   }
 
+  public getRGBPixelData(): Uint8Array | null {
+    const pixels = this.pixelData.get();
+    const manifest = this.manifest.get();
+
+    if (!pixels || !manifest) return null;
+
+    const rgb = new Uint8Array(pixels.length * 3);
+
+    // Pre-parse palette to avoid parsing hex strings per pixel
+    const palette = new Uint8Array(manifest.color_index.length * 3);
+    for (let i = 0; i < manifest.color_index.length; i++) {
+      const hex = manifest.color_index[i];
+      palette[i * 3]     = parseInt(hex.slice(1, 3), 16);
+      palette[i * 3 + 1] = parseInt(hex.slice(3, 5), 16);
+      palette[i * 3 + 2] = parseInt(hex.slice(5, 7), 16);
+    }
+
+    for (let i = 0; i < pixels.length; i++) {
+      const ci = pixels[i] * 3;
+      const ri = i * 3;
+      rgb[ri]     = palette[ci];
+      rgb[ri + 1] = palette[ci + 1];
+      rgb[ri + 2] = palette[ci + 2];
+    }
+
+    return rgb;
+  }
+
   private async init() {
     await this.fetchManifest();
     await this.syncCheckpointData();

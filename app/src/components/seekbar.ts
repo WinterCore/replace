@@ -30,6 +30,9 @@ export class Seekbar extends LitElement {
   @property({ type: Boolean })
   isLoading: boolean = false;
 
+  @property({ type: Boolean })
+  disabled: boolean = false;
+
   // playhead position (while dragging) which is applied with a debounce
   @state()
   dragPosition: number = 0;
@@ -50,6 +53,7 @@ export class Seekbar extends LitElement {
 
     .container {
       position: absolute;
+      z-index: 10;
       left: 0;
       bottom: 0;
       right: 0;
@@ -170,7 +174,7 @@ export class Seekbar extends LitElement {
   private mouseDownMeta: ElementMeta | null = null;
 
   handleMouseMove = (evt: MouseEvent) => {
-    if (! this.mouseDownMeta) {
+    if (this.disabled || !this.mouseDownMeta) {
       return;
     }
 
@@ -195,6 +199,7 @@ export class Seekbar extends LitElement {
   }
 
   handleTrackMouseDown(evt: MouseEvent) {
+    if (this.disabled) return;
     evt.stopPropagation();
     const { left, width } = this.track.getBoundingClientRect();
     this.mouseDownMeta = { x: evt.clientX, y: evt.clientY, left, width };
@@ -242,6 +247,7 @@ export class Seekbar extends LitElement {
   };
 
   handleTrackMouseEnter = (evt: MouseEvent) => {
+    if (this.disabled) return;
     const { left, width } = this.track.getBoundingClientRect();
 
     this.hoverMeta = { x: 0, y: 0, left, width };
@@ -261,6 +267,7 @@ export class Seekbar extends LitElement {
   };
 
   handleKeyDown = (e: KeyboardEvent) => {
+    if (this.disabled) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     switch (e.key) {
       case 'j':
