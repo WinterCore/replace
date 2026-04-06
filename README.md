@@ -73,8 +73,8 @@ A JSON file listing all checkpoints with their timestamps, color palette, canvas
 - [x] Mouse and touch pan/zoom with inertia
 - [x] Checkpoint caching
 - [x] Loading state indicators
+- [x] Prefetch checkpoints ahead of playback position
 - [ ] YouTube-style seekbar drag-up-to-zoom
-- [ ] Prefetch checkpoints ahead of playback position
 
 ## Special Thanks
 

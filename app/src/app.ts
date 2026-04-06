@@ -229,9 +229,9 @@ export class App extends LitElement {
       ${
         AsyncData.combine(this.playbackController.pixelData, this.playbackController.manifest).render({
           renderLoading: 'no-data',
-          data: ([pixels, manifest]) => html`
+          data: ([pixels, manifest], isLoading) => html`
             <replace-canvas
-              class=${this.playbackController.pixelData.isLoading ? 'dimmed' : ''}
+              class=${isLoading ? 'dimmed' : ''}
               .imageWidth=${manifest.width}
               .imageHeight=${manifest.height}
               .highlights=${this.highlights}
@@ -243,7 +243,7 @@ export class App extends LitElement {
               .current=${this.playbackController.playheadOffset}
               .playbackSpeed=${this.playbackController.playbackSpeed}
               .playbackState=${this.playbackController.playbackState}
-              .isLoading=${this.playbackController.pixelData.isLoading}
+              .isLoading=${isLoading}
               .disabled=${this.amongiData.isLoading}
               @playbackStateChange=${this.handleSetPlaybackState}
               @playheadChange=${this.handleSeek}

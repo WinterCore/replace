@@ -122,6 +122,14 @@ export class PlaybackController implements ReactiveController {
       return;
     }
 
+    if (checkpointData.isLoading) {
+      if (! this.pixelData.isLoading) {
+        this.pixelData = this.pixelData.setLoading();
+        this.host.requestUpdate();
+      }
+      return;
+    }
+
     this.pixelData = checkpointData.map((data) =>
       applyDeltaToCheckpoint({
         currentOffset: this.#playheadOffset,
@@ -144,68 +152,87 @@ export class PlaybackController implements ReactiveController {
       return;
     }
 
-    const existingCheckpointData = this.#checkpointMap.get(checkpoint.index);
+    const numCheckpointsToLoad = Math.ceil(Math.log10(this.#playbackSpeed + 1)) * 3;
 
-    if (
-      existingCheckpointData &&
-      (
-        // Is being loaded
-        existingCheckpointData.isLoading ||
-        // Is already loaded
-        existingCheckpointData.get()
-      )
-    ) {
-      // Skip
-      return;
-    }
+    const getRange = () => {
+      if (this.#playbackState === 'forward') {
+        return Array
+          .from({ length: numCheckpointsToLoad })
+          .map((_, i) => checkpoint.index + i)
+          .filter((index) => index < manifest.checkpoints.length);
+      } else if (this.#playbackState === 'backward') {
+        return Array
+          .from({ length: numCheckpointsToLoad })
+          .map((_, i) => checkpoint.index - i)
+          .filter((index) => index >= 0);
+      } else {
+        return [checkpoint.index];
+      }
+    };
 
-    const abortController = new AbortController();
 
-    try {
-      // TODO: Purge/cancel ONLY the no longer needed checkpoints
-      Array.from(this.#checkpointMap.values())
-        .forEach((asyncData) => asyncData.abortController?.abort())
-      this.#checkpointMap = new Map();
+    const range = getRange();
 
-      this.pixelData = this.pixelData.setLoading();
-      this.host.requestUpdate();
-
-      // Fetch primary checkpoint
-      this.#checkpointMap.set(
-        checkpoint.index,
-        new AsyncData<CheckpointData>().setLoading(abortController),
-      );
-
-      const {
-        checkpointBuffer,
-        deltaBuffer,
-      } = await fetchCheckpointData(checkpoint.index, this.basePath, abortController);
-
-      const checkpointData = new Uint8Array(checkpointBuffer);
-      const deltaData = new Uint8Array(deltaBuffer);
-
-      this.#checkpointMap.set(
-        checkpoint.index,
-        new AsyncData<CheckpointData>().setData({
-          index: checkpoint.index,
-          checkpointData,
-          deltaData,
-        }),
-      );
-
-      this.syncPixelDataWithPlayhead();
-    } catch (err) {
-      if (abortController.signal.aborted) {
+    // Clean up checkpoints that are no longer in range.
+    Array.from(this.#checkpointMap).forEach(([index, checkpointData]) => {
+      if (range.includes(index) && ! checkpointData.error) {
         return;
       }
 
-      console.error('syncCheckpointData failed!', err);
+      checkpointData.abortController?.abort();
+      this.#checkpointMap.delete(index);
+    });
 
+    // Start loading checkpoints that are in range
+    for (let i = 0; i < range.length; i += 1) {
+      const index = range[i];
+      const existingEntry = this.#checkpointMap.get(index);
+
+      // Skip loading checkpoints that are already being loaded.
+      if (existingEntry && (existingEntry.isLoading || existingEntry.get())) {
+        continue;
+      }
+
+      const abortController = new AbortController();
+
+      // Start loading checkpoints that are in range but not yet loaded or being loaded.
       this.#checkpointMap.set(
-        checkpoint.index,
-        new AsyncData<CheckpointData>().setError('Failed'),
+        index,
+        new AsyncData<CheckpointData>().setLoading(abortController),
       );
+
+      fetchCheckpointData(index, this.basePath, abortController)
+        .then(({ checkpointBuffer, deltaBuffer }) => {
+          const checkpointData = new Uint8Array(checkpointBuffer);
+          const deltaData = new Uint8Array(deltaBuffer);
+
+          this.#checkpointMap.set(
+            index,
+            new AsyncData<CheckpointData>().setData({
+              index,
+              checkpointData,
+              deltaData,
+            }),
+          );
+
+          if (index === checkpoint.index) {
+            this.syncPixelDataWithPlayhead();
+          }
+        }).catch((err) => {
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          console.error('syncCheckpointData failed!', err);
+
+          this.#checkpointMap.set(
+            index,
+            new AsyncData<CheckpointData>().setError('Failed'),
+          );
+        });
     }
+
+    this.syncPixelDataWithPlayhead();
   }
 
   get playheadOffset() {
