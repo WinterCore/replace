@@ -4,7 +4,15 @@
 
 # Re/place
 
-![Re/place screenshot](screenshot.jpg)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=poV6yMVxgxs">
+    <img src="thumbnail.png" alt="Re/place — I built a time machine! Watch on YouTube" width="720" />
+  </a>
+</p>
+
+<p align="center">
+  ▶️ <a href="https://www.youtube.com/watch?v=poV6yMVxgxs"><b>Watch the video on YouTube</b></a>
+</p>
 
 A viewer for r/place that lets you scroll through the entire history and see pixel changes in realtime. Supports both r/place 2022 (2000x2000) and 2023 (3000x2000) datasets.
 
