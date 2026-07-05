@@ -1,4 +1,4 @@
-import { LitElement, css, html } from 'lit'
+import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, state } from 'lit/decorators.js'
 import { PlaybackController, type PlaybackSpeed, type Year, YEARS } from './controllers/playback-controller'
 import DetectorWorker from './amongi-detector/worker?worker';
@@ -24,10 +24,25 @@ export class App extends LitElement {
   @state()
   highlights: Uint16Array | null = null;
 
+  @state()
+  cleanMode = new URLSearchParams(window.location.search).get('clean') === '1';
+
+  @state()
+  amongiCount: number | null = null;
+
+  #countUpRaf = 0;
+
   static styles = css`
     :host {
       display: block;
       height: 100%;
+    }
+
+    :host(.clean) .logo,
+    :host(.clean) .top-right-icons,
+    :host(.clean) .year-toggle,
+    :host(.clean) replace-seekbar {
+      display: none;
     }
 
     .logo {
@@ -58,10 +73,11 @@ export class App extends LitElement {
     }
 
     .top-right-icons {
+      /* No z-index: a stacking context here would isolate the icons'
+         mix-blend-mode from the canvas beneath. DOM order keeps them on top. */
       position: absolute;
       top: 16px;
       right: 16px;
-      z-index: 20;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -71,6 +87,7 @@ export class App extends LitElement {
     .top-right-icons button {
       opacity: 0.5;
       transition: opacity 200ms ease-out;
+      mix-blend-mode: difference;
     }
 
     .top-right-icons a:hover,
@@ -105,6 +122,9 @@ export class App extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      /* Blend the group as a whole — the z-index stacking context would
+         isolate per-button blend modes from the canvas. */
+      mix-blend-mode: difference;
     }
 
     .year-toggle button {
@@ -146,6 +166,50 @@ export class App extends LitElement {
     .amongi-detect-overlay button {
       font-size: 24px;
     }
+
+    .amongi-counter {
+      position: absolute;
+      left: 20px;
+      bottom: 108px;
+      z-index: 20;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      color: white;
+      pointer-events: none;
+      text-shadow: 0 2px 8px rgb(0 0 0 / 80%);
+      animation: counter-in 300ms ease-out;
+    }
+
+    :host(.clean) .amongi-counter {
+      left: 24px;
+      bottom: 24px;
+    }
+
+    .amongi-counter .count {
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .amongi-counter .counter-label {
+      margin-top: 6px;
+      font-size: 15px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgb(255 255 255 / 65%);
+    }
+
+    @keyframes counter-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
   `
 
   handleSeek(evt: CustomEvent<number>) {
@@ -169,9 +233,54 @@ export class App extends LitElement {
     this.resetAmongiDetection();
   }
 
+  handleAppKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      this.cleanMode = !this.cleanMode;
+      e.preventDefault();
+    }
+  };
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.classList.toggle('clean', this.cleanMode);
+    window.addEventListener('keydown', this.handleAppKeyDown);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.removeEventListener('keydown', this.handleAppKeyDown);
+  }
+
+  updated(changedProperties: PropertyValues<this>): void {
+    if (changedProperties.has('cleanMode')) {
+      this.classList.toggle('clean', this.cleanMode);
+    }
+  }
+
   resetAmongiDetection() {
     this.amongiData = new AsyncData();
     this.highlights = null;
+    cancelAnimationFrame(this.#countUpRaf);
+    this.amongiCount = null;
+  }
+
+  startCountUp(target: number) {
+    cancelAnimationFrame(this.#countUpRaf);
+
+    const duration = 2200;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.amongiCount = Math.round(target * eased);
+
+      if (t < 1) {
+        this.#countUpRaf = requestAnimationFrame(tick);
+      }
+    };
+
+    this.#countUpRaf = requestAnimationFrame(tick);
   }
 
   handleDetectAmongi() {
@@ -201,10 +310,11 @@ export class App extends LitElement {
     worker.onmessage = (event: MessageEvent<DetectionResult>) => {
       this.amongiData = this.amongiData.setData(event.data);
 
-      const pixelCoords = Object.values(event.data.amongi)
+      const detected = Object.values(event.data.amongi)
         .flatMap((x) => x)
-        .filter((x) => x.certainty > 0.5 && x.completeness > 0.85)
-        .flatMap((x) => x.pixels);
+        .filter((x) => x.certainty > 0.5 && x.completeness > 0.85);
+
+      const pixelCoords = detected.flatMap((x) => x.pixels);
 
       const highlightedPixels = new Uint16Array(
         pixelCoords.flatMap((coord) => [coord.x, coord.y])
@@ -212,6 +322,7 @@ export class App extends LitElement {
 
 
       this.highlights = highlightedPixels;
+      this.startCountUp(detected.length);
     };
 
     abortController.signal.addEventListener('abort', () => {
@@ -221,7 +332,7 @@ export class App extends LitElement {
 
   cancelAmongiDetection() {
     this.amongiData.abortController?.abort();
-    this.amongiData = new AsyncData();
+    this.resetAmongiDetection();
   }
 
   render() {
@@ -277,6 +388,12 @@ export class App extends LitElement {
           </div>
         `
       })}
+      ${this.amongiCount !== null ? html`
+        <div class="amongi-counter">
+          <div class="count">${this.amongiCount.toLocaleString('en-US')}</div>
+          <div class="counter-label">amongi detected</div>
+        </div>
+      ` : null}
       <div class="year-toggle">
         ${YEARS.map(year => html`
           <button

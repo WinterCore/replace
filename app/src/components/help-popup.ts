@@ -16,6 +16,7 @@ export class HelpPopup extends LitElement {
       opacity: 0.5;
       transition: opacity 200ms ease-out;
       height: 24px;
+      mix-blend-mode: difference;
     }
 
     .help-toggle:hover {

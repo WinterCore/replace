@@ -25,6 +25,7 @@ export class CreditsPopup extends LitElement {
       cursor: pointer;
       opacity: 0.5;
       transition: opacity 200ms ease-out;
+      mix-blend-mode: difference;
     }
 
     .credits-toggle:hover {
