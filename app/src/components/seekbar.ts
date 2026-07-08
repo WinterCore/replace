@@ -266,6 +266,14 @@ export class Seekbar extends LitElement {
     this.dispatchEvent(new CustomEvent('playbackStateChange', { detail: state }));
   };
 
+  handleTogglePlayback = () => {
+    const state: PlaybackState = this.playbackState === 'paused'
+      ? 'forward'
+      : 'paused';
+
+    this.dispatchEvent(new CustomEvent('playbackStateChange', { detail: state }));
+  };
+
   handleKeyDown = (e: KeyboardEvent) => {
     if (this.disabled) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -274,7 +282,7 @@ export class Seekbar extends LitElement {
         this.handleSetPlaybackState(this.playbackState === 'backward' ? 'paused' : 'backward')();
         break;
       case 'k':
-        this.handleSetPlaybackState('paused')();
+        this.handleTogglePlayback();
         break;
       case 'l':
         this.handleSetPlaybackState(this.playbackState === 'forward' ? 'paused' : 'forward')();
@@ -313,7 +321,7 @@ export class Seekbar extends LitElement {
         <div class="controls">
           <div class="controls-inner">
             <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('backward')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="transform: rotate(180deg)" stroke-linejoin="round" class="lucide lucide-play-icon lucide-play ${this.playbackState === 'backward' ? 'active' : ''}"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
-            <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('paused')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause-icon lucide-pause"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleTogglePlayback} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause-icon lucide-pause"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>
             <svg xmlns="http://www.w3.org/2000/svg" @click=${this.handleSetPlaybackState('forward')} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play-icon lucide-play ${this.playbackState === 'forward' ? 'active' : ''}"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>
             <div class="playback-speed" @click=${this.handleTogglePlaybackSpeed}>${this.playbackSpeed}x</div>
             <div style="margin-left: 10px">${this.timestampToReadableTime(this.current)}</div>
